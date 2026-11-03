@@ -1,0 +1,13 @@
+# 환경 변수 / API 키
+.env
+.env.local
+.env.*.local
+config.js
+
+# OS / 에디터
+.DS_Store
+Thumbs.db
+*.log
+node_modules/
+dist/
+.vite/
