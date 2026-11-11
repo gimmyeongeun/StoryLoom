@@ -548,7 +548,16 @@ const WORD_BANK = {
   glowing: { meaning: "빛나는", pron: "/GLOH-ing/" },
   hidden: { meaning: "숨겨진", pron: "/HID-en/" },
   rainbow: { meaning: "무지개", pron: "/RAYN-boh/" },
-  riddle: { meaning: "수수께끼", pron: "/RID-ul/" }
+  riddle: { meaning: "수수께끼", pron: "/RID-ul/" },
+  young: { meaning: "어린, 젊은", pron: "/yung/" },
+  younger: { meaning: "더 어린", pron: "/YUNG-ger/" },
+  youngest: { meaning: "가장 어린, 막내", pron: "/YUNG-gist/" },
+  oldest: { meaning: "가장 나이 많은, 맏이", pron: "/OHL-dist/" },
+  elder: { meaning: "손위, 연장자", pron: "/EL-der/" },
+  brother: { meaning: "형제, 오빠/남동생", pron: "/BRUH-ther/" },
+  brothers: { meaning: "형제들", pron: "/BRUH-therz/" },
+  sister: { meaning: "자매, 언니/여동생", pron: "/SIS-ter/" },
+  sisters: { meaning: "자매들", pron: "/SIS-terz/" }
 };
 
 const PRONOUN_BANK = {
@@ -1151,7 +1160,7 @@ async function fetchAiWordGloss(word, sentence) {
   if (cached) return cached;
   const apiKey = getGroqApiKey();
   if (!apiKey) return null;
-  const systemPrompt = "You are a children's English dictionary API that MUST respond ONLY with a valid JSON object.\nReturn JSON with keys: meaning (short accurate Korean gloss, comma-separated if multiple), role (one friendly Korean sentence about how the word is used in THIS sentence, e.g. '~할 때', '뻗은'), pron (simple IPA-like pronunciation like /as/).\nNo markdown. No extra keys.";
+  const systemPrompt = "You are a children's English dictionary API that MUST respond ONLY with a valid JSON object.\nReturn JSON with keys: meaning (short accurate Korean gloss, comma-separated if multiple), role (one friendly Korean sentence about how the word is used in THIS sentence, e.g. '~할 때', '뻗은'), pron (simple IPA-like pronunciation like /as/).\nVocabulary consistency: youngest -> \"가장 어린\" or fairy-tale sibling sense \"막내\"; NEVER \"가장 작은\". younger -> \"더 어린\". young -> \"어린\".\nNo markdown. No extra keys.";
   const userMessage = "Word: " + word + "\nSentence: " + sentence + "\nExplain the word's Korean meaning and its role in this sentence for an elementary learner.";
   const models = ["openai/gpt-oss-20b", "openai/gpt-oss-120b"];
   let lastError = null;
@@ -1162,7 +1171,13 @@ async function fetchAiWordGloss(word, sentence) {
       const role = String((data && (data.role || data.context || data.note)) || "").trim();
       const pron = String((data && data.pron) || ("/" + String(word).toLowerCase() + "/")).trim();
       if (!meaning) throw new Error("empty meaning");
-      return cacheAiGloss(word, sentence, { meaning: meaning, role: role, pron: pron });
+      const fixedMeaning = /\byoungest\b/i.test(String(word || ""))
+        ? String(meaning).replace(/가장 작은/g, "가장 어린")
+        : meaning;
+      const fixedRole = /\byoungest\b/i.test(String(word || "") + " " + String(sentence || ""))
+        ? String(role || "").replace(/가장 작은/g, "가장 어린")
+        : role;
+      return cacheAiGloss(word, sentence, { meaning: fixedMeaning, role: fixedRole, pron: pron });
     } catch (err) {
       lastError = err;
       console.warn("[StoryLoom] AI 단어 뜻 실패:", models[i], err && err.message);
@@ -1177,7 +1192,7 @@ async function fetchAiPhraseGloss(phrase, pageContext) {
   if (aiGlossCache[cacheKey]) return aiGlossCache[cacheKey];
   const apiKey = getGroqApiKey();
   if (!apiKey) return null;
-  const systemPrompt = "You are a children's English reading helper API that MUST respond ONLY with a valid JSON object.\nReturn JSON with keys: translation (natural Korean translation of the selected English), note (one short friendly Korean explanation).\nNo markdown.";
+  const systemPrompt = "You are a children's English reading helper API that MUST respond ONLY with a valid JSON object.\nReturn JSON with keys: translation (natural Korean translation of the selected English), note (one short friendly Korean explanation).\nVocabulary consistency: translate youngest as \"가장 어린\" or \"막내\" (fairy-tale siblings). NEVER use \"가장 작은\" for youngest.\nNo markdown.";
   const userMessage = "Selected English: " + phrase + "\nStory context: " + (pageContext || "") + "\nTranslate for an elementary Korean learner.";
   const models = ["openai/gpt-oss-20b", "openai/gpt-oss-120b"];
   for (let i = 0; i < models.length; i++) {
@@ -1186,7 +1201,11 @@ async function fetchAiPhraseGloss(phrase, pageContext) {
       const translation = String((data && (data.translation || data.korean || data.meaning)) || "").trim();
       const note = String((data && (data.note || data.role || data.context)) || "").trim();
       if (!translation) throw new Error("empty translation");
-      const gloss = { meaning: translation, role: note || "선택한 구절의 해석이에요.", pron: "" };
+      const gloss = {
+        meaning: enforceYoungestGlossary(phrase, translation),
+        role: note || "선택한 구절의 해석이에요.",
+        pron: ""
+      };
       aiGlossCache[cacheKey] = gloss;
       return gloss;
     } catch (err) {
@@ -1893,7 +1912,7 @@ function softFallbackStory() {
   throw new Error("Groq API 장면을 받지 못했습니다. 잠시 후 다시 시도해 주세요.");
 }
 
-const SYSTEM_PROMPT = "You are a story generation API that MUST respond ONLY with a valid JSON object.\nYou are a creative children's fairy tale author.\n\n[STRICT NARRATIVE RULES]\n1. Universal Override: Break the original fairy tale plot immediately. The user's input strictly dictates the next event.\n1-1. User Keyword Priority: The user's exact input word/phrase (e.g., \"mysterious map\") MUST appear as a core story object or action in the next english scene. Do NOT ignore it, replace it with a vague synonym-only detour, or drift into an unrelated plot.\n1-2. Arrival & Entry Process: If the user names a new place (e.g., a cottage) or asks to move there, NEVER teleport characters instantly inside. First vividly describe discovering it, walking closer, and then opening the door / stepping in as a natural arrival-and-entry beat within the scene.\n1-3. Intelligent Narrative Conversion (No Meta Speech): If the user input contains instruction-like meta phrasing (e.g., \"~라고 했다\", \"~해 줘\", \"said that\", \"tell them to\"), DO NOT paste that meta wording into the story. Convert it into the character's or object's real spoken dialogue in quotation marks and/or vivid action. Example: user says \"장신구가 도망치라고 했다\" -> write that the charm glows warmly and speaks, \"It's dangerous here—run away now!\" (or equivalent natural fairy-tale action/dialogue).\n2. Negative Statements: Pay extreme attention to negative words ('not', 'didn't', '않았다', '없다'). If the user says an event did NOT happen, NEVER let it happen.\n3. No Repetition: DO NOT repeat previous scenes or sentences. Always progress the story forward to a NEW event.\n4. Exact Action Focus: Focus on specific actions from the user's input.\n4-1. Goose Movement Tone: When describing a goose, NEVER use awkward wording like \"waddle/waddling\". Prefer warm, cute, fairy-tale friendly movement (e.g., softly paddled, gently hopped beside him, nestled close, walked proudly with tiny steps).\n4-2. Squirrel & Map Continuity: If a squirrel appeared in previous scenes and the user input is about a map (e.g., \"mysterious map\"), continue naturally: the squirrel hops over, greets the boy warmly, then takes a mysterious map / parchment from its pouch and places it in the boy's hands to guide the way.\n5. Perfect Translation: The korean field MUST be a 1:1 accurate, intuitive translation of the generated english sentence word by word in meaning (e.g., mysterious box -> 신비한 상자, strange noise -> 이상한 소리). NEVER use a fixed Korean template that does not match the English. Never leave raw English words in the Korean text.\n5-1. Korean Spoken Tone (해요체): The korean text MUST use warm, friendly spoken Korean ending style (해요체) with endings like \"~어요\", \"~했어요\", \"~답니다\", \"~거든요\". NEVER use stiff written/literary endings (문어체). Examples: \"~지었다\" -> \"~지었어요\"; \"~느꼈다\" -> \"~느꼈답니다\"; \"~흩어졌다\" -> \"~흩어졌어요\".\n5-2. Fairy-tale Kinship Terms: When translating kinship/cottage words, use warm fairy-tale Korean, NOT stiff literal phrasing. Examples: elder / grandmother / grandma -> \"할머니\"; elder's cottage / grandmother's cottage -> \"할머니의 오두막\". NEVER translate as awkward formal phrases like \"연세가 많은 분\". For \"mysterious map\" prefer \"신비로운 지도\" or \"비밀 지도(양피지)\".\n6. Unique Sentence Frames: NEVER use repeating sentence frames like 'Then X discovered Y and Z'. Every new scene MUST use a unique sentence structure and fresh vocabulary. Invent a brand-new English sentence from scratch each time — do not fill blanks in a fixed template.\n\n[STRICT SUGGESTIONS RULES (RECOMMENDED WORDS)]\n- Purpose: Suggestions MUST be 3 FORWARD-LOOKING plot hooks for the NEXT upcoming scene.\n- NO REPETITION: NEVER use words, nouns, or adjectives that appeared in past scenes (e.g., if 'brick', 'house', 'built' were used, NEVER include them in suggestions).\n- COMPLETE PHRASES ONLY: Every suggestion MUST be a natural 2-4 word English phrase (e.g., 'a strange noise', 'open a secret door', 'a helpful friendly bird'). NEVER output broken fragments like 'a built', 'a strong', or single incomplete words.\n- 3 DIVERSE PATHS: Give 3 completely different options for where the story could go next.\n\n[OUTPUT FORMAT]\nReturn ONLY a valid JSON object:\n{\n  \"english\": \"1-2 English sentences for the next scene\",\n  \"korean\": \"자연스러운 한국어 번역\",\n  \"suggestions\": [\"phrase 1\", \"phrase 2\", \"phrase 3\"]\n}";
+const SYSTEM_PROMPT = "You are a story generation API that MUST respond ONLY with a valid JSON object.\nYou are a creative children's fairy tale author.\n\n[STRICT NARRATIVE RULES]\n1. Universal Override: Break the original fairy tale plot immediately. The user's input strictly dictates the next event.\n1-1. User Keyword Priority: The user's exact input word/phrase (e.g., \"mysterious map\") MUST appear as a core story object or action in the next english scene. Do NOT ignore it, replace it with a vague synonym-only detour, or drift into an unrelated plot.\n1-2. Arrival & Entry Process: If the user names a new place (e.g., a cottage) or asks to move there, NEVER teleport characters instantly inside. First vividly describe discovering it, walking closer, and then opening the door / stepping in as a natural arrival-and-entry beat within the scene.\n1-3. Intelligent Narrative Conversion (No Meta Speech): If the user input contains instruction-like meta phrasing (e.g., \"~라고 했다\", \"~해 줘\", \"said that\", \"tell them to\"), DO NOT paste that meta wording into the story. Convert it into the character's or object's real spoken dialogue in quotation marks and/or vivid action. Example: user says \"장신구가 도망치라고 했다\" -> write that the charm glows warmly and speaks, \"It's dangerous here—run away now!\" (or equivalent natural fairy-tale action/dialogue).\n2. Negative Statements: Pay extreme attention to negative words ('not', 'didn't', '않았다', '없다'). If the user says an event did NOT happen, NEVER let it happen.\n3. No Repetition: DO NOT repeat previous scenes or sentences. Always progress the story forward to a NEW event.\n4. Exact Action Focus: Focus on specific actions from the user's input.\n4-1. Goose Movement Tone: When describing a goose, NEVER use awkward wording like \"waddle/waddling\". Prefer warm, cute, fairy-tale friendly movement (e.g., softly paddled, gently hopped beside him, nestled close, walked proudly with tiny steps).\n4-2. Squirrel & Map Continuity: If a squirrel appeared in previous scenes and the user input is about a map (e.g., \"mysterious map\"), continue naturally: the squirrel hops over, greets the boy warmly, then takes a mysterious map / parchment from its pouch and places it in the boy's hands to guide the way.\n5. Perfect Translation: The korean field MUST be a 1:1 accurate, intuitive translation of the generated english sentence word by word in meaning (e.g., mysterious box -> 신비한 상자, strange noise -> 이상한 소리). NEVER use a fixed Korean template that does not match the English. Never leave raw English words in the Korean text.\n5-1. Korean Spoken Tone (해요체): The korean text MUST use warm, friendly spoken Korean ending style (해요체) with endings like \"~어요\", \"~했어요\", \"~답니다\", \"~거든요\". NEVER use stiff written/literary endings (문어체). Examples: \"~지었다\" -> \"~지었어요\"; \"~느꼈다\" -> \"~느꼈답니다\"; \"~흩어졌다\" -> \"~흩어졌어요\".\n5-2. Fairy-tale Kinship Terms: When translating kinship/cottage words, use warm fairy-tale Korean, NOT stiff literal phrasing. Examples: elder / grandmother / grandma -> \"할머니\"; elder's cottage / grandmother's cottage -> \"할머니의 오두막\". NEVER translate as awkward formal phrases like \"연세가 많은 분\". For \"mysterious map\" prefer \"신비로운 지도\" or \"비밀 지도(양피지)\".\n5-3. Age Vocabulary Consistency (youngest): When the English contains \"youngest\", the Korean MUST translate it as \"가장 어린\" or, in warm sibling/fairy-tale context, \"막내\". NEVER mistranslate \"youngest\" as \"가장 작은\" (that is for size, not age). Keep the same choice consistently within a scene (word gloss, sentence gloss, and full korean field must agree).\n6. Unique Sentence Frames: NEVER use repeating sentence frames like 'Then X discovered Y and Z'. Every new scene MUST use a unique sentence structure and fresh vocabulary. Invent a brand-new English sentence from scratch each time — do not fill blanks in a fixed template.\n\n[STRICT SUGGESTIONS RULES (RECOMMENDED WORDS)]\n- Purpose: Suggestions MUST be 3 FORWARD-LOOKING plot hooks for the NEXT upcoming scene.\n- NO REPETITION: NEVER use words, nouns, or adjectives that appeared in past scenes (e.g., if 'brick', 'house', 'built' were used, NEVER include them in suggestions).\n- COMPLETE PHRASES ONLY: Every suggestion MUST be a natural 2-4 word English phrase (e.g., 'a strange noise', 'open a secret door', 'a helpful friendly bird'). NEVER output broken fragments like 'a built', 'a strong', or single incomplete words.\n- 3 DIVERSE PATHS: Give 3 completely different options for where the story could go next.\n\n[OUTPUT FORMAT]\nReturn ONLY a valid JSON object:\n{\n  \"english\": \"1-2 English sentences for the next scene\",\n  \"korean\": \"자연스러운 한국어 번역\",\n  \"suggestions\": [\"phrase 1\", \"phrase 2\", \"phrase 3\"]\n}";
 
 async function callGroqChatJson(apiKey, model, systemPrompt, userMessage, temperature) {
   const trimmedKey = String(apiKey || "").trim();
@@ -2010,10 +2029,22 @@ function previousStoryContext() {
   ].join("\n");
 }
 
+function enforceYoungestGlossary(english, korean) {
+  const en = String(english || "");
+  let ko = String(korean || "");
+  if (!/\byoungest\b/i.test(en) || !ko) return ko;
+  // 나이(youngest)를 크기(가장 작은)로 옮긴 오역만 교정
+  ko = ko.replace(/가장 작은/g, "가장 어린");
+  return ko;
+}
+
 function normalizeGeminiPayload(payload) {
   const raw = payload || {};
   const english = String(raw.english || raw.story_en || raw.en || "").trim();
-  const korean = String(raw.korean || raw.story_ko || raw.ko || "").trim();
+  const korean = enforceYoungestGlossary(
+    english,
+    String(raw.korean || raw.story_ko || raw.ko || "").trim()
+  );
   // Groq chat 응답의 choices 와 혼동하지 않도록 suggestions/keywords 만 사용
   const suggestionSource = raw.suggestions != null ? raw.suggestions
     : (raw.keywords != null ? raw.keywords
