@@ -1,6 +1,26 @@
-function getGeminiApiKey() {
-  const env = window.__ENV__ || {};
-  return String(env.GEMINI_API_KEY || "").trim();
+function getGroqApiKey() {
+  const raw =
+    (window.__ENV__ && window.__ENV__.GROQ_API_KEY) ||
+    (window.CONFIG && window.CONFIG.GROQ_API_KEY) ||
+    window.GROQ_API_KEY ||
+    "";
+  const key = String(raw || "").trim();
+  if (!key || key.indexOf("여기에_발급받은") === 0 || key.indexOf("gsk_") !== 0) {
+    console.error("API Key null/undefined");
+    console.error("Groq API 키가 유효하지 않습니다. gsk_로 시작하는 키를 확인하세요.");
+    return "";
+  }
+  return key;
+}
+
+function requireGroqApiKey() {
+  const apiKey = getGroqApiKey();
+  if (!apiKey) {
+    console.error("API Key null/undefined");
+    alert("API 키 설정 확인 필요");
+    return "";
+  }
+  return apiKey;
 }
 
 const CHARACTERS = {
@@ -17,7 +37,7 @@ const LEVELS = {
 };
 
 const TEMPLATES = {
-  pigs: { title: "아기돼지 삼형제", en: "Three Little Pigs", art: "pigs", cover: "linear-gradient(160deg,#ff9eb5,#ffd0a8)", emoji: "🐷", madlib: "Once upon a time, three little pigs built a [ house ] made of [ bricks ].", choices: ["a brick house", "a candy house", "a cloud house"] },
+  pigs: { title: "아기돼지 삼형제", en: "Three Little Pigs", art: "pigs", cover: "linear-gradient(160deg,#ff9eb5,#ffd0a8)", emoji: "🐷", madlib: "Once upon a time, three little pigs built a [ house ] made of [ bricks ].", choices: ["a hidden trail", "a mysterious box", "a friendly bird"] },
   alice: { title: "이상한 나라의 앨리스", en: "Alice in Wonderland", art: "alice", cover: "linear-gradient(160deg,#c4b5fd,#f9a8d4)", emoji: "🐇", madlib: "Alice followed the [ white rabbit ] down into a [ wonderland ].", choices: ["a talking flower", "a tiny door", "a tea party"] },
   redhood: { title: "빨간 모자", en: "Little Red Riding Hood", art: "redhood", cover: "linear-gradient(160deg,#86efac,#fde68a)", emoji: "🧺", madlib: "Little Red Riding Hood walked through the [ forest ] with a [ basket ].", choices: ["fresh apples", "a kind wolf", "a map of stars"] },
   goose: { title: "황금거위", en: "Golden Goose", art: "goose", cover: "linear-gradient(160deg,#fde68a,#fdba74)", emoji: "🪿", madlib: "A kind child shared bread and found a [ golden goose ].", choices: ["a golden feather", "a warm pie", "a new friend"] }
@@ -28,7 +48,16 @@ const CLASSIC_STORIES = {
     title: "Three Little Pigs",
     story_en: "Once upon a time, three little pigs built houses of straw, sticks, and bricks to stay safe.",
     story_ko: "옛날 옛적에, 아기돼지 삼형제가 안전하게 살기 위해 짚, 나무, 벽돌로 집을 지었어요.",
-    image: "images/three_pigs.png"
+    image: "images/three_pigs.png",
+    words: [
+      { word: "pigs", meaning: "돼지들", pron: "/pigz/" },
+      { word: "built", meaning: "지었어요", pron: "/bilt/" },
+      { word: "houses", meaning: "집들", pron: "/HOW-ziz/" },
+      { word: "straw", meaning: "짚", pron: "/straw/" },
+      { word: "sticks", meaning: "나뭇가지", pron: "/stiks/" },
+      { word: "bricks", meaning: "벽돌", pron: "/briks/" },
+      { word: "safe", meaning: "안전한", pron: "/sayf/" }
+    ]
   },
   alice: {
     title: "Alice in Wonderland",
@@ -50,26 +79,36 @@ const CLASSIC_STORIES = {
   }
 };
 
-function resetStoryBook(key) {
+function makeOpeningPage(key) {
   const data = CLASSIC_STORIES[key];
-  const tpl = TEMPLATES[key];
-  if (!data || !tpl) return;
-  $("relayInput").value = data.title;
-  currentTemplateImage = data.image;
-  state.templateImage = data.image;
-  storyPages.length = 0;
-  storyPages.push({
+  if (!data) return null;
+  return {
     scene: 1,
     text_en: data.story_en,
     text_ko: data.story_ko,
     image: data.image,
-    en: sentenceToTokens(data.story_en, data.words),
-    kr: data.story_ko
-  });
+    en: sentenceToTokens(data.story_en, data.words || []),
+    kr: data.story_ko,
+    isOpening: true
+  };
+}
+
+function seedClassicSceneOne(key) {
+  const storyKey = CLASSIC_STORIES[key] ? key : "pigs";
+  const data = CLASSIC_STORIES[storyKey];
+  const tpl = TEMPLATES[storyKey];
+  if (!data || !tpl) return false;
+  const opening = makeOpeningPage(storyKey);
+  if (!opening) return false;
+  storyPages.length = 0;
+  storyPages.push(opening);
   currentPage = 0;
+  currentTemplateImage = data.image;
+  state.template = storyKey;
+  state.templateImage = data.image;
   state.story = {
-    id: "classic-" + key,
-    templateKey: key,
+    id: "classic-" + storyKey,
+    templateKey: storyKey,
     title: data.title,
     kr: tpl.title,
     emoji: tpl.emoji,
@@ -81,9 +120,41 @@ function resetStoryBook(key) {
     published: false,
     level: state.level
   };
+  state.storyPages = storyPages;
+  return true;
+}
+
+function ensureClassicOpeningPage() {
+  const key = CLASSIC_STORIES[state.template] ? state.template : "pigs";
+  if (!storyPages.length) {
+    seedClassicSceneOne(key);
+    return;
+  }
+  if (!storyPages[0].isOpening) {
+    const opening = makeOpeningPage(key);
+    if (!opening) return;
+    storyPages.unshift(opening);
+    storyPages.forEach((page, index) => { page.scene = index + 1; });
+    currentTemplateImage = opening.image;
+    state.templateImage = opening.image;
+    if (state.story) {
+      state.story.pages = storyPages;
+      state.story.image = opening.image;
+      state.story.templateKey = key;
+    }
+  }
+}
+
+function resetStoryBook(key) {
+  const storyKey = CLASSIC_STORIES[key] ? key : null;
+  if (!storyKey) return;
+  const inputEl = $("relayInput") || $("user-input");
+  if (inputEl) inputEl.value = "";
+  seedClassicSceneOne(storyKey);
   $("reader").classList.remove("hidden");
   $("flipWrap").classList.remove("hidden");
   updateUI();
+  $("flipWrap").scrollIntoView({ behavior: "smooth", block: "center" });
 }
 
 const W = (text, meaning, pron, example) => ({ text, meaning, pron, example });
@@ -164,7 +235,7 @@ const state = {
   prevTab: "create",
   character: "barnaby",
   level: "beginner",
-  template: "pigs",
+  template: null,
   templateImage: "images/three_pigs.png",
   showTranslation: true,
   page: 0,
@@ -273,62 +344,347 @@ function sceneArt(kind) {
 }
 
 const WORD_BANK = {
-  three: { meaning: "세", pron: "/three/" },
-  little: { meaning: "작은", pron: "/LIT-ul/" },
+  three: { meaning: "세, 셋", pron: "/three/" },
+  little: { meaning: "작은, 어린", pron: "/LIT-ul/" },
   pigs: { meaning: "돼지들", pron: "/pigz/" },
-  built: { meaning: "지었어요", pron: "/bilt/" },
+  pig: { meaning: "돼지", pron: "/pig/" },
+  built: { meaning: "지었어요, 세웠어요", pron: "/bilt/" },
   houses: { meaning: "집들", pron: "/HOW-ziz/" },
-  straw: { meaning: "짚", pron: "/straw/" },
-  sticks: { meaning: "나뭇가지", pron: "/stiks/" },
+  house: { meaning: "집", pron: "/hows/" },
+  straw: { meaning: "짚, 지푸라기", pron: "/straw/" },
+  sticks: { meaning: "나뭇가지, 막대기", pron: "/stiks/" },
   bricks: { meaning: "벽돌", pron: "/briks/" },
   safe: { meaning: "안전한", pron: "/sayf/" },
   alice: { meaning: "앨리스", pron: "/AL-iss/" },
   opened: { meaning: "열었어요", pron: "/OH-pend/" },
+  open: { meaning: "열다, 열려 있는", pron: "/OH-pen/" },
   tiny: { meaning: "아주 작은", pron: "/TY-nee/" },
   door: { meaning: "문", pron: "/dor/" },
   discovered: { meaning: "발견했어요", pron: "/dis-KUV-erd/" },
   magical: { meaning: "마법의", pron: "/MAJ-i-kul/" },
+  magic: { meaning: "마법, 마법의", pron: "/MAJ-ik/" },
   garden: { meaning: "정원", pron: "/GAR-den/" },
   followed: { meaning: "따라갔어요", pron: "/FOL-ohd/" },
-  white: { meaning: "하얀", pron: "/wite/" },
+  follow: { meaning: "따르다, 따라가다", pron: "/FOL-oh/" },
+  white: { meaning: "하얀, 흰", pron: "/wite/" },
   rabbit: { meaning: "토끼", pron: "/RAB-it/" },
-  hole: { meaning: "굴", pron: "/hohl/" },
-  wonderland: { meaning: "이상한 나라", pron: "/WUN-der-land/" },
+  hole: { meaning: "구멍, 굴", pron: "/hohl/" },
+  wonderland: { meaning: "이상한 나라, 원더랜드", pron: "/WUN-der-land/" },
   walked: { meaning: "걸어갔어요", pron: "/wawkt/" },
+  walk: { meaning: "걷다, 산책하다", pron: "/wawk/" },
   forest: { meaning: "숲", pron: "/FOR-ist/" },
-  visit: { meaning: "만나러 가다", pron: "/VIZ-it/" },
+  visit: { meaning: "방문하다, 만나러 가다", pron: "/VIZ-it/" },
   grandmother: { meaning: "할머니", pron: "/GRAN-muh-ther/" },
-  carried: { meaning: "들고 갔어요", pron: "/KAIR-eed/" },
-  kind: { meaning: "착한", pron: "/kynd/" },
-  boy: { meaning: "소년", pron: "/boy/" },
-  found: { meaning: "발견했어요", pron: "/fownd/" },
-  golden: { meaning: "황금의", pron: "/GOL-den/" },
+  grandma: { meaning: "할머니", pron: "/GRAN-mah/" },
+  carried: { meaning: "들고 갔어요, 옮겼어요", pron: "/KAIR-eed/" },
+  kind: { meaning: "착한, 친절한", pron: "/kynd/" },
+  boy: { meaning: "소년, 남자아이", pron: "/boy/" },
+  girl: { meaning: "소녀, 여자아이", pron: "/gurl/" },
+  found: { meaning: "발견했어요, 찾았어요", pron: "/fownd/" },
+  find: { meaning: "찾다, 발견하다", pron: "/fynd/" },
+  golden: { meaning: "황금의, 금빛", pron: "/GOL-den/" },
   goose: { meaning: "거위", pron: "/goos/" },
   brought: { meaning: "가져다주었어요", pron: "/brawt/" },
+  bring: { meaning: "가져오다", pron: "/bring/" },
   happiness: { meaning: "행복", pron: "/HAP-ee-nes/" },
+  happy: { meaning: "행복한, 기쁜", pron: "/HAP-ee/" },
   kingdom: { meaning: "왕국", pron: "/KING-dum/" },
-  shared: { meaning: "나눴어요", pron: "/shaird/" },
-  home: { meaning: "집", pron: "/hohm/" }
+  shared: { meaning: "나눴어요, 공유했어요", pron: "/shaird/" },
+  share: { meaning: "나누다, 공유하다", pron: "/shair/" },
+  home: { meaning: "집, 고향", pron: "/hohm/" },
+  bird: { meaning: "새", pron: "/burd/" },
+  wolf: { meaning: "늑대", pron: "/woolf/" },
+  map: { meaning: "지도", pron: "/map/" },
+  mysterious: { meaning: "신비로운, 수수께끼 같은", pron: "/mis-TEER-ee-us/" },
+  cottage: { meaning: "오두막, 작은 집", pron: "/KOT-ij/" },
+  squirrel: { meaning: "다람쥐", pron: "/SKWIR-ul/" },
+  friend: { meaning: "친구", pron: "/frend/" },
+  friends: { meaning: "친구들", pron: "/frendz/" },
+  path: { meaning: "길, 오솔길", pron: "/path/" },
+  brave: { meaning: "용감한", pron: "/brayv/" },
+  soft: { meaning: "부드러운", pron: "/soft/" },
+  warm: { meaning: "따뜻한", pron: "/worm/" },
+  glow: { meaning: "빛나다, 빛", pron: "/gloh/" },
+  glowed: { meaning: "빛났어요", pron: "/glohd/" },
+  suddenly: { meaning: "갑자기", pron: "/SUD-un-lee/" },
+  then: { meaning: "그러자, 그때", pron: "/then/" },
+  next: { meaning: "다음에, 다음의", pron: "/nekst/" },
+  sun: { meaning: "해, 태양", pron: "/sun/" },
+  moon: { meaning: "달", pron: "/moon/" },
+  star: { meaning: "별", pron: "/star/" },
+  stars: { meaning: "별들", pron: "/starz/" },
+  as: { meaning: "~할 때, ~하면서", pron: "/az/" },
+  once: { meaning: "한번, 옛날에", pron: "/wuns/" },
+  upon: { meaning: "~위에, ~하자마자", pron: "/uh-PON/" },
+  time: { meaning: "시간, 때", pron: "/tyme/" },
+  red: { meaning: "빨간, 붉은", pron: "/red/" },
+  riding: { meaning: "타고 가는, 승마의", pron: "/RY-ding/" },
+  hood: { meaning: "후드, 모자", pron: "/hood/" },
+  through: { meaning: "~을 통과하여, ~을 지나", pron: "/throo/" },
+  her: { meaning: "그녀의, 그녀를", pron: "/hur/" },
+  his: { meaning: "그의", pron: "/hiz/" },
+  a: { meaning: "하나의, ~라는 (관사)", pron: "/uh/" },
+  an: { meaning: "하나의 (모음 앞 관사)", pron: "/an/" },
+  the: { meaning: "그, 그 특정한 (관사)", pron: "/thuh/" },
+  and: { meaning: "그리고, ~와", pron: "/and/" },
+  or: { meaning: "또는, ~이나", pron: "/or/" },
+  to: { meaning: "~로, ~하기 위해", pron: "/too/" },
+  of: { meaning: "~의", pron: "/uv/" },
+  in: { meaning: "~안에, ~에서", pron: "/in/" },
+  on: { meaning: "~위에, ~에", pron: "/on/" },
+  for: { meaning: "~을 위해, ~동안", pron: "/for/" },
+  with: { meaning: "~와 함께, ~으로", pron: "/with/" },
+  into: { meaning: "~안으로", pron: "/IN-too/" },
+  down: { meaning: "아래로, 아래로의", pron: "/down/" },
+  up: { meaning: "위로, 올라가서", pron: "/up/" },
+  out: { meaning: "밖으로", pron: "/owt/" },
+  at: { meaning: "~에, ~에서", pron: "/at/" },
+  by: { meaning: "~옆에, ~에 의해", pron: "/by/" },
+  from: { meaning: "~로부터", pron: "/frum/" },
+  but: { meaning: "그러나, 하지만", pron: "/but/" },
+  so: { meaning: "그래서, 매우", pron: "/soh/" },
+  if: { meaning: "만약 ~라면", pron: "/if/" },
+  when: { meaning: "~할 때, 언제", pron: "/wen/" },
+  where: { meaning: "~한 곳에, 어디에", pron: "/wair/" },
+  who: { meaning: "누가, ~하는 사람", pron: "/hoo/" },
+  what: { meaning: "무엇, 무슨", pron: "/wut/" },
+  why: { meaning: "왜", pron: "/wy/" },
+  how: { meaning: "어떻게", pron: "/how/" },
+  was: { meaning: "~였다, ~이었다 (과거)", pron: "/wuz/" },
+  were: { meaning: "~였다 (복수/과거)", pron: "/wur/" },
+  is: { meaning: "~이다", pron: "/iz/" },
+  are: { meaning: "~이다 (복수)", pron: "/ar/" },
+  be: { meaning: "~이다, ~되다", pron: "/bee/" },
+  been: { meaning: "~이었던 (완료)", pron: "/bin/" },
+  have: { meaning: "가지다, ~했다", pron: "/hav/" },
+  has: { meaning: "가지고 있다", pron: "/haz/" },
+  had: { meaning: "가졌다, ~했었다", pron: "/had/" },
+  not: { meaning: "~아니다, ~않다", pron: "/not/" },
+  no: { meaning: "아니다, 없는", pron: "/noh/" },
+  yes: { meaning: "네, 예", pron: "/yes/" },
+  very: { meaning: "매우, 아주", pron: "/VER-ee/" },
+  too: { meaning: "너무, 또한", pron: "/too/" },
+  also: { meaning: "또한, 역시", pron: "/AWL-soh/" },
+  just: { meaning: "바로, 단지", pron: "/just/" },
+  only: { meaning: "오직, 단지", pron: "/OHN-lee/" },
+  all: { meaning: "모든, 전부", pron: "/awl/" },
+  some: { meaning: "어떤, 몇몇의", pron: "/sum/" },
+  any: { meaning: "어떤, 아무런", pron: "/EN-ee/" },
+  there: { meaning: "거기, 그곳에", pron: "/thair/" },
+  here: { meaning: "여기, 이곳에", pron: "/heer/" },
+  now: { meaning: "지금", pron: "/now/" },
+  soon: { meaning: "곧, 머지않아", pron: "/soon/" },
+  big: { meaning: "큰", pron: "/big/" },
+  small: { meaning: "작은", pron: "/smawl/" },
+  new: { meaning: "새로운", pron: "/noo/" },
+  old: { meaning: "오래된, 늙은", pron: "/ohld/" },
+  good: { meaning: "좋은", pron: "/good/" },
+  bad: { meaning: "나쁜", pron: "/bad/" },
+  long: { meaning: "긴, 오래", pron: "/lawng/" },
+  short: { meaning: "짧은", pron: "/short/" },
+  beautiful: { meaning: "아름다운", pron: "/BYOO-ti-ful/" },
+  dark: { meaning: "어두운", pron: "/dark/" },
+  light: { meaning: "빛, 가벼운, 밝은", pron: "/lyte/" },
+  night: { meaning: "밤", pron: "/nite/" },
+  day: { meaning: "낮, 하루", pron: "/day/" },
+  morning: { meaning: "아침", pron: "/MOR-ning/" },
+  evening: { meaning: "저녁", pron: "/EEV-ning/" },
+  came: { meaning: "왔어요", pron: "/kaym/" },
+  come: { meaning: "오다", pron: "/kum/" },
+  went: { meaning: "갔어요", pron: "/went/" },
+  go: { meaning: "가다", pron: "/goh/" },
+  see: { meaning: "보다", pron: "/see/" },
+  saw: { meaning: "봤어요", pron: "/saw/" },
+  look: { meaning: "보다, 살펴보다", pron: "/look/" },
+  looked: { meaning: "봤어요, 살펴봤어요", pron: "/lookt/" },
+  said: { meaning: "말했어요", pron: "/sed/" },
+  say: { meaning: "말하다", pron: "/say/" },
+  tell: { meaning: "말하다, 이야기하다", pron: "/tel/" },
+  asked: { meaning: "물었어요", pron: "/askt/" },
+  ran: { meaning: "달렸어요", pron: "/ran/" },
+  run: { meaning: "달리다", pron: "/run/" },
+  jumped: { meaning: "뛰었어요", pron: "/jumpt/" },
+  lived: { meaning: "살았어요", pron: "/livd/" },
+  live: { meaning: "살다, 살다", pron: "/liv/" },
+  made: { meaning: "만들었어요", pron: "/mayd/" },
+  make: { meaning: "만들다", pron: "/mayk/" },
+  took: { meaning: "가져갔어요, 데려갔어요", pron: "/took/" },
+  take: { meaning: "가져가다, 데려가다", pron: "/tayk/" },
+  gave: { meaning: "주었어요", pron: "/gayv/" },
+  give: { meaning: "주다", pron: "/giv/" },
+  put: { meaning: "놓다, 두다", pron: "/put/" },
+  help: { meaning: "돕다, 도움", pron: "/help/" },
+  helped: { meaning: "도와주었어요", pron: "/helpt/" },
+  love: { meaning: "사랑하다, 좋아하다", pron: "/luv/" },
+  like: { meaning: "좋아하다, ~처럼", pron: "/lyke/" },
+  want: { meaning: "원하다", pron: "/wont/" },
+  need: { meaning: "필요하다", pron: "/need/" },
+  can: { meaning: "~할 수 있다", pron: "/kan/" },
+  could: { meaning: "~할 수 있었다", pron: "/kood/" },
+  will: { meaning: "~할 것이다", pron: "/wil/" },
+  would: { meaning: "~할 것이다/했을 것이다", pron: "/wood/" },
+  should: { meaning: "~해야 한다", pron: "/shood/" },
+  must: { meaning: "~해야 한다, 틀림없이", pron: "/must/" },
+  secret: { meaning: "비밀, 비밀의", pron: "/SEE-krit/" },
+  lantern: { meaning: "랜턴, 등불", pron: "/LAN-tern/" },
+  trail: { meaning: "오솔길, 흔적", pron: "/trayl/" },
+  box: { meaning: "상자", pron: "/boks/" },
+  noise: { meaning: "소리, 소음", pron: "/noyz/" },
+  bridge: { meaning: "다리", pron: "/brij/" },
+  tree: { meaning: "나무", pron: "/tree/" },
+  boat: { meaning: "배", pron: "/boht/" },
+  river: { meaning: "강", pron: "/RIV-er/" },
+  mountain: { meaning: "산", pron: "/MOWN-tun/" },
+  village: { meaning: "마을", pron: "/VIL-ij/" },
+  mother: { meaning: "어머니", pron: "/MUTH-er/" },
+  father: { meaning: "아버지", pron: "/FAH-ther/" },
+  child: { meaning: "아이", pron: "/chyld/" },
+  children: { meaning: "아이들", pron: "/CHIL-dren/" },
+  people: { meaning: "사람들", pron: "/PEE-pul/" },
+  strong: { meaning: "강한, 튼튼한", pron: "/strong/" },
+  clever: { meaning: "똑똑한, 영리한", pron: "/KLEV-er/" },
+  helpful: { meaning: "도움이 되는", pron: "/HELP-ful/" },
+  strange: { meaning: "이상한, 낯선", pron: "/straynj/" },
+  glowing: { meaning: "빛나는", pron: "/GLOH-ing/" },
+  hidden: { meaning: "숨겨진", pron: "/HID-en/" },
+  rainbow: { meaning: "무지개", pron: "/RAYN-boh/" },
+  riddle: { meaning: "수수께끼", pron: "/RID-ul/" }
 };
 
-const STOP_WORDS = { a: 1, an: 1, the: 1, and: 1, or: 1, to: 1, of: 1, in: 1, on: 1, for: 1, with: 1, her: 1, his: 1, into: 1, down: 1, that: 1, was: 1, were: 1, is: 1, are: 1, once: 1, upon: 1, time: 1, through: 1 };
+const PRONOUN_BANK = {
+  it: { meaning: "그것", pron: "/it/" },
+  its: { meaning: "그것의", pron: "/its/" },
+  they: { meaning: "그들", pron: "/thay/" },
+  them: { meaning: "그들을", pron: "/them/" },
+  their: { meaning: "그들의", pron: "/thair/" },
+  he: { meaning: "그(남자/동물)", pron: "/hee/" },
+  him: { meaning: "그를", pron: "/him/" },
+  his: { meaning: "그의", pron: "/hiz/" },
+  she: { meaning: "그녀", pron: "/shee/" },
+  her: { meaning: "그녀의/그녀를", pron: "/hur/" },
+  we: { meaning: "우리", pron: "/wee/" },
+  us: { meaning: "우리를", pron: "/us/" },
+  our: { meaning: "우리의", pron: "/owr/" },
+  you: { meaning: "너/당신", pron: "/yoo/" },
+  your: { meaning: "너의/당신의", pron: "/yor/" },
+  this: { meaning: "이것", pron: "/this/" },
+  that: { meaning: "저것/그것", pron: "/that/" },
+  these: { meaning: "이것들", pron: "/theez/" },
+  those: { meaning: "저것들", pron: "/thohz/" }
+};
 
-function sentenceToTokens(sentence, glosses) {
+const STOP_WORDS = {};
+
+function buildWordLookup(glosses) {
   const lookup = {};
   Object.keys(WORD_BANK).forEach((key) => { lookup[key] = WORD_BANK[key]; });
+  Object.keys(PRONOUN_BANK).forEach((key) => { lookup[key] = PRONOUN_BANK[key]; });
   (glosses || []).forEach((item) => {
     if (!item || !item.word) return;
-    lookup[String(item.word).toLowerCase()] = { meaning: item.meaning || "", pron: item.pron || "", example: item.example || "" };
+    lookup[String(item.word).toLowerCase()] = {
+      meaning: item.meaning || "",
+      pron: item.pron || "",
+      example: item.example || ""
+    };
   });
-  const parts = String(sentence || "").match(/[A-Za-z']+|[.,!?]/g) || [String(sentence || "")];
+  return lookup;
+}
+
+function findPronounAntecedent(pronoun, textBefore) {
+  const skip = { a: 1, an: 1, the: 1, and: 1, or: 1, to: 1, of: 1, in: 1, on: 1, for: 1, with: 1, into: 1, from: 1, at: 1, by: 1, as: 1, but: 1, was: 1, were: 1, is: 1, are: 1 };
+  const words = String(textBefore || "").match(/[A-Za-z']+/g) || [];
+  for (let i = words.length - 1; i >= 0; i--) {
+    const raw = words[i];
+    const key = raw.toLowerCase();
+    if (PRONOUN_BANK[key] || skip[key]) continue;
+    if (WORD_BANK[key] || /^[A-Z]/.test(raw)) {
+      return {
+        en: raw,
+        ko: (WORD_BANK[key] && WORD_BANK[key].meaning) || raw
+      };
+    }
+  }
+  return null;
+}
+
+function guessWordMeaning(key) {
+  const word = String(key || "").toLowerCase();
+  if (!word) return "이 영어 단어";
+  if (word.endsWith("ly") && WORD_BANK[word.slice(0, -2)]) {
+    return WORD_BANK[word.slice(0, -2)].meaning + " (부사: ~하게)";
+  }
+  if (word.endsWith("ing") && WORD_BANK[word.slice(0, -3)]) {
+    return WORD_BANK[word.slice(0, -3)].meaning + " (~하는 중)";
+  }
+  if (word.endsWith("ed") && WORD_BANK[word.slice(0, -2)]) {
+    return WORD_BANK[word.slice(0, -2)].meaning + " (과거)";
+  }
+  if (word.endsWith("s") && WORD_BANK[word.slice(0, -1)]) {
+    return WORD_BANK[word.slice(0, -1)].meaning + " (복수/3인칭)";
+  }
+  return "「" + word + "」의 뜻 (문맥에서 확인해 보세요)";
+}
+
+function resolveWordInfo(key, lookup) {
+  const k = String(key || "").toLowerCase();
+  return (lookup && lookup[k]) || PRONOUN_BANK[k] || WORD_BANK[k] || {
+    meaning: guessWordMeaning(k),
+    pron: "/" + k + "/"
+  };
+}
+
+function wordTokenFromText(text, sentence, lookup, fullText) {
+  const part = String(text || "");
+  const key = part.toLowerCase();
+  const info = resolveWordInfo(key, lookup);
+  const token = {
+    text: part,
+    meaning: info.meaning || guessWordMeaning(key),
+    pron: info.pron || ("/" + key + "/"),
+    example: info.example || sentence || part,
+    context: ""
+  };
+  if (PRONOUN_BANK[key]) {
+    token.meaning = PRONOUN_BANK[key].meaning;
+    token.pron = PRONOUN_BANK[key].pron;
+    const haystack = String(fullText || sentence || "");
+    const sent = String(sentence || "");
+    const hayLower = haystack.toLowerCase();
+    const sentLower = sent.toLowerCase();
+    let before = sent;
+    const sentPos = hayLower.indexOf(sentLower.slice(0, Math.min(24, sentLower.length)) || key);
+    const localIdx = sentLower.indexOf(key);
+    if (sentPos >= 0 && localIdx >= 0) {
+      before = haystack.slice(0, sentPos + localIdx);
+    } else if (localIdx >= 0) {
+      before = sent.slice(0, localIdx);
+    } else {
+      before = haystack;
+    }
+    const ant = findPronounAntecedent(key, before);
+    if (ant) {
+      token.context = '이 문장에서 "' + ant.en + '"(' + ant.ko + ")를 가리켜요.";
+    } else {
+      token.context = "앞에서 나온 사람·동물·사물을 가리키는 말이에요.";
+    }
+  }
+  return token;
+}
+
+function sentenceToTokens(sentence, glosses, fullText) {
+  const lookup = buildWordLookup(glosses);
+  const full = String(sentence || "");
+  const parts = full.match(/[A-Za-z']+|[.,!?]/g) || [full];
   return parts.map((part) => {
     if (/^[.,!?]$/.test(part)) return part;
-    const key = part.toLowerCase();
-    if (STOP_WORDS[key]) return part;
-    const info = lookup[key];
-    if (!info || !info.meaning) return part;
-    return { text: part, meaning: info.meaning, pron: info.pron || "", example: info.example || sentence };
+    return wordTokenFromText(part, full, lookup, fullText || full);
   });
+}
+
+function wordButtonHtml(part) {
+  const token = typeof part === "string" ? wordTokenFromText(part, part) : part;
+  // button 대신 span으로 두어 문장 안 텍스트 선택이 깨지지 않게 함
+  return '<span role="button" tabindex="0" class="word-btn border-b-2 border-violet-300 font-extrabold text-violet-700 dark:border-violet-200 dark:text-white" data-action="word" data-word="' + esc(token.text) + '" data-meaning="' + esc(token.meaning) + '" data-pron="' + esc(token.pron) + '" data-example="' + esc(token.example) + '" data-context="' + esc(token.context || "") + '" data-sentence="' + esc(token.example || "") + '">' + esc(token.text) + "</span>";
 }
 
 function tokensToHtml(tokens, interactive) {
@@ -336,14 +692,95 @@ function tokensToHtml(tokens, interactive) {
     return '<span class="text-slate-900 dark:text-white">' + esc(plainLine(tokens)) + "</span>";
   }
   let html = "";
+  const sentence = plainLine(tokens);
   tokens.forEach((part) => {
-    const punct = typeof part === "string" && /^[.!?,]+$/.test(part);
-    const piece = typeof part === "string"
-      ? '<span class="text-slate-800 dark:text-white">' + esc(part) + "</span>"
-      : '<button type="button" class="word-btn mx-0.5 border-b-2 border-violet-300 font-extrabold text-violet-700 dark:border-violet-200 dark:text-white" data-action="word" data-word="' + esc(part.text) + '" data-meaning="' + esc(part.meaning) + '" data-pron="' + esc(part.pron) + '" data-example="' + esc(part.example) + '">' + esc(part.text) + "</button>";
-    html += (html && !punct ? " " : "") + piece;
+    if (typeof part === "string") {
+      if (/^[.,!?]+$/.test(part)) {
+        html += esc(part);
+        return;
+      }
+      const bits = part.match(/[A-Za-z']+|[.,!?]+|\s+/g) || [part];
+      bits.forEach((bit) => {
+        if (/^\s+$/.test(bit)) {
+          html += " ";
+          return;
+        }
+        if (/^[.,!?]+$/.test(bit)) {
+          html += esc(bit);
+          return;
+        }
+        html += (html && !/[>\s]$/.test(html) ? " " : "") + wordButtonHtml(wordTokenFromText(bit, sentence, null, sentence));
+      });
+      return;
+    }
+    html += (html && !/[>\s]$/.test(html) ? " " : "") + wordButtonHtml(part);
   });
   return html;
+}
+
+function splitEnglishSentences(text) {
+  const raw = String(text || "").trim();
+  if (!raw) return [];
+  const matches = raw.match(/[^.!?]+[.!?]+|[^.!?]+$/g);
+  return (matches || [raw]).map((s) => s.trim()).filter(Boolean);
+}
+
+function splitKoreanSentences(text) {
+  const raw = String(text || "").trim();
+  if (!raw) return [];
+  const parts = raw.split(/(?<=[.!?다요죠네까]+)\s+/).map((s) => s.trim()).filter(Boolean);
+  return parts.length ? parts : [raw];
+}
+
+function glossesFromPage(page) {
+  const glosses = [];
+  (page.en || []).forEach((part) => {
+    if (part && typeof part === "object" && part.text && part.meaning) {
+      glosses.push({
+        word: part.text,
+        meaning: part.meaning,
+        pron: part.pron || "",
+        example: part.example || ""
+      });
+    }
+  });
+  (page.words || []).forEach((item) => {
+    if (item && item.word) glosses.push(item);
+  });
+  return glosses;
+}
+
+function renderInteractiveStoryHtml(page, interactive) {
+  const enText = page.text_en || plainLine(page.en || []);
+  const koText = page.text_ko || page.kr || "";
+  if (!interactive) {
+    return '<span class="text-slate-900 dark:text-white">' + esc(enText) + "</span>";
+  }
+  const glosses = glossesFromPage(page);
+  const enSentences = splitEnglishSentences(enText);
+  const koSentences = splitKoreanSentences(koText);
+  if (!enSentences.length) {
+    return tokensToHtml(page.en || sentenceToTokens(enText, glosses, enText), true);
+  }
+  return enSentences.map((sentence, index) => {
+    const ko = koSentences[index] || koText || "이 문장의 전체 뜻을 확인해 보세요.";
+    const tokens = sentenceToTokens(sentence, glosses, enText);
+    return (
+      '<span class="story-sentence mb-3 block leading-relaxed" data-action="sentence-body" data-en="' + esc(sentence) + '" data-ko="' + esc(ko) + '">' +
+      tokensToHtml(tokens, true) +
+      ' <button type="button" class="sentence-tip-btn ml-1 align-middle" data-action="sentence-tip" data-en="' + esc(sentence) + '" data-ko="' + esc(ko) + '">문장 해석</button>' +
+      "</span>"
+    );
+  }).join("");
+}
+
+function lookupPhraseMeaning(text) {
+  const words = String(text || "").match(/[A-Za-z']+/g) || [];
+  if (!words.length) return "선택한 부분을 확인해 보세요.";
+  if (words.length === 1) {
+    return resolveWordInfo(words[0].toLowerCase()).meaning;
+  }
+  return words.map((word) => resolveWordInfo(word.toLowerCase()).meaning).join(" · ");
 }
 
 function plainLine(tokens) {
@@ -416,26 +853,491 @@ function renderLevel() {
   renderParents();
 }
 
-function renderComposer() {
-  const tpl = TEMPLATES[state.template];
-  const classic = CLASSIC_STORIES[state.template];
-  state.templateImage = classic ? classic.image : state.templateImage;
-  currentTemplateImage = state.templateImage;
-  $("madlib").textContent = tpl.madlib;
-  $("choices").innerHTML = tpl.choices.map((choice) => '<button type="button" data-action="choice" data-choice="' + esc(choice) + '" class="rounded-full bg-amber-50 px-3 py-2 text-xs font-extrabold text-amber-800 dark:bg-slate-900 dark:text-white">' + esc(choice) + "</button>").join("");
-  document.querySelectorAll(".tpl-card").forEach((card) => card.classList.toggle("tpl-on", card.dataset.tpl === state.template));
+function extractSuggestionsList(raw) {
+  if (raw == null) return [];
+  if (Array.isArray(raw)) {
+    return raw.map((item) => {
+      if (item == null) return "";
+      if (typeof item === "string" || typeof item === "number") return String(item).trim();
+      if (typeof item === "object") {
+        return String(item.word || item.text || item.keyword || item.suggestion || item.label || "").trim();
+      }
+      return String(item).trim();
+    }).filter(Boolean);
+  }
+  if (typeof raw === "string") {
+    const trimmed = raw.trim();
+    if (!trimmed) return [];
+    if (trimmed.startsWith("[")) {
+      try {
+        return extractSuggestionsList(JSON.parse(trimmed));
+      } catch (err) { /* 아래에서 분리 */ }
+    }
+    return trimmed.split(/[,|/\n]+/).map((part) => part.replace(/^["'\s]+|["'\s]+$/g, "").trim()).filter(Boolean);
+  }
+  if (typeof raw === "object") return extractSuggestionsList(Object.values(raw));
+  return [];
 }
 
-function hideTooltip() { $("tooltip").classList.add("hidden"); }
+const SAFE_SUGGESTION_POOL = [
+  "a hidden trail",
+  "a mysterious box",
+  "a friendly bird",
+  "a strange noise",
+  "open a secret door",
+  "a glowing lantern",
+  "a clever riddle",
+  "a rainbow bridge",
+  "a helpful squirrel",
+  "follow a lantern",
+  "a tiny boat",
+  "climb a tall tree"
+];
 
-function showTooltip(btn) {
+function getFullStoryWordSet(extraText) {
+  const text = (collectFullStoryEnglish().join(" ") + " " + String(extraText || "")).toLowerCase();
+  return new Set(text.match(/[a-z]{3,}/g) || []);
+}
+
+function isCompleteSuggestionPhrase(phrase) {
+  const value = String(phrase || "").trim();
+  const parts = value.split(/\s+/).filter(Boolean);
+  if (parts.length < 2 || parts.length > 4) return false;
+  if (/^(a|an)\s+(built|strong|soft|discovered|found|happy|big|little|new|old|good|bad|brave|kind|brick|house)$/i.test(value)) {
+    return false;
+  }
+  if (/^(a|an)\s+[a-z]+(ed|en)$/i.test(value) && parts.length === 2) return false;
+  return true;
+}
+
+function suggestionOverlapsStory(phrase, wordSet) {
+  const stop = { the: 1, and: 1, for: 1, with: 1, from: 1, into: 1, open: 1, find: 1, a: 1, an: 1 };
+  const tokens = String(phrase || "").toLowerCase().match(/[a-z]{3,}/g) || [];
+  return tokens.some((token) => !stop[token] && wordSet.has(token));
+}
+
+function filterSuggestionsAgainstFullStory(suggestions, english, userInput) {
+  const wordSet = getFullStoryWordSet([english || "", userInput || ""].join(" "));
+  const out = [];
+  const pushUnique = (phrase) => {
+    const value = String(phrase || "").trim();
+    if (!value) return;
+    if (!isCompleteSuggestionPhrase(value)) return;
+    if (suggestionOverlapsStory(value, wordSet)) return;
+    if (out.some((item) => item.toLowerCase() === value.toLowerCase())) return;
+    out.push(value);
+  };
+  extractSuggestionsList(suggestions).forEach(pushUnique);
+  SAFE_SUGGESTION_POOL.forEach(pushUnique);
+  while (out.length < 3) {
+    out.push(["a hidden trail", "a mysterious box", "a friendly bird"][out.length] || "a magic surprise");
+  }
+  return out.slice(0, 3);
+}
+
+function inventSuggestionsFromScene(english, userInput) {
+  return filterSuggestionsAgainstFullStory([], english, userInput);
+}
+
+function normalizeSuggestions(raw, english, userInput) {
+  return filterSuggestionsAgainstFullStory(raw, english, userInput);
+}
+
+function fillRelayInputWithChoice(choice) {
+  const inputEl = $("relayInput") || document.getElementById("user-input") || $("user-input");
+  if (!inputEl) return;
+  inputEl.value = String(choice || "");
+  inputEl.focus();
+}
+
+function getSuggestionsContainer() {
+  return (
+    $("choices") ||
+    document.getElementById("suggestions-container") ||
+    document.querySelector("#choices") ||
+    document.querySelector(".suggestion-buttons")
+  );
+}
+
+function renderChoiceButtons(suggestions, english, userInput) {
+  const box = getSuggestionsContainer();
+  if (!box) {
+    console.warn("[StoryLoom] 추천 단어 컨테이너(#choices)를 찾지 못했습니다.");
+    return;
+  }
+  const list = normalizeSuggestions(suggestions, english, userInput);
+  box.innerHTML = "";
+  list.forEach((choice) => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "rounded-full bg-amber-50 px-3 py-2 text-xs font-extrabold text-amber-800 dark:bg-slate-900 dark:text-white";
+    btn.textContent = choice;
+    btn.setAttribute("data-action", "choice");
+    btn.setAttribute("data-choice", choice);
+    btn.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      fillRelayInputWithChoice(choice);
+    });
+    box.appendChild(btn);
+  });
+  state.lastSuggestions = list.slice();
+  console.log("[StoryLoom] 추천 단어 버튼 교체 완료:", list);
+}
+
+function updateSuggestionButtonsFromApi(parsedData, english, userInput) {
+  const suggestions = parsedData && parsedData.suggestions != null
+    ? parsedData.suggestions
+    : (parsedData && Array.isArray(parsedData) ? parsedData : []);
+  console.log("Groq Response Suggestions:", suggestions);
+  renderChoiceButtons(suggestions, english || (parsedData && parsedData.english) || "", userInput || "");
+}
+
+function renderComposer() {
+  const selectedKey = TEMPLATES[state.template] ? state.template : null;
+  const tpl = selectedKey ? TEMPLATES[selectedKey] : TEMPLATES.pigs;
+  const classic = selectedKey ? CLASSIC_STORIES[selectedKey] : null;
+  if (classic) {
+    state.templateImage = classic.image;
+    currentTemplateImage = state.templateImage;
+  }
+  $("madlib").textContent = tpl.madlib;
+  renderChoiceButtons(tpl.choices);
+  document.querySelectorAll(".tpl-card").forEach((card) => {
+    card.classList.toggle("tpl-on", !!selectedKey && card.dataset.tpl === selectedKey);
+  });
+}
+
+const tipState = { open: false, key: "", mode: "" };
+const aiGlossCache = Object.create(null);
+let pendingSelection = { text: "", rect: null };
+let interpretChipTimer = null;
+let wordClickTimer = null;
+
+function isTooltipVisible() {
   const tip = $("tooltip");
-  const word = btn.dataset.word;
-  tip.innerHTML = '<p class="text-base font-black text-slate-900 dark:text-white">' + esc(word) + '</p><p class="text-sm font-extrabold text-violet-600 dark:text-gray-200">' + esc(btn.dataset.pron) + '</p><p class="mt-1 text-sm font-bold text-slate-700 dark:text-gray-200">' + esc(btn.dataset.meaning) + '</p><p class="mt-1 text-xs font-bold text-slate-500 dark:text-gray-200">예: ' + esc(btn.dataset.example) + '</p><div class="mt-2 flex gap-2"><button type="button" class="rounded-xl bg-violet-100 px-2 py-1 text-xs font-extrabold text-violet-700 dark:bg-slate-700 dark:text-white" data-action="speak" data-speak="' + esc(word) + '">🔊 발음</button><button type="button" class="rounded-xl bg-pink-100 px-2 py-1 text-xs font-extrabold text-pink-700 dark:bg-pink-900 dark:text-white" data-action="save-word" data-word="' + esc(word) + '" data-meaning="' + esc(btn.dataset.meaning) + '" data-pron="' + esc(btn.dataset.pron) + '" data-example="' + esc(btn.dataset.example) + '">단어장 저장</button></div>';
+  return tip && !tip.classList.contains("hidden");
+}
+
+function clearWordTipHighlight() {
+  document.querySelectorAll(".word-btn.is-tip-open").forEach((el) => el.classList.remove("is-tip-open"));
+}
+
+function hideTooltip() {
+  const tip = $("tooltip");
+  if (tip) tip.classList.add("hidden");
+  tipState.open = false;
+  tipState.key = "";
+  tipState.mode = "";
+  clearWordTipHighlight();
+}
+
+function placeTooltipNear(rect, clientX, clientY) {
+  const tip = $("tooltip");
+  const width = 300;
+  const height = 220;
+  let left = typeof clientX === "number" ? clientX + 12 : rect.left;
+  let top = typeof clientY === "number" ? clientY + 16 : (rect.bottom + 8);
+  if (typeof clientX !== "number") left = rect.left;
+  left = Math.max(8, Math.min(left, window.innerWidth - width));
+  top = Math.max(8, Math.min(top, window.innerHeight - height));
+  tip.style.left = left + "px";
+  tip.style.top = top + "px";
+}
+
+function isWeakMeaning(meaning) {
+  const m = String(meaning || "").trim();
+  if (!m) return true;
+  return /문맥에서 확인해|이 영어 단어|작은 기능어|뜻을 확인해|뜻 \(문맥|「[^」]+」의 뜻/.test(m);
+}
+
+function fillTooltipContent(word, meaning, pron, example, contextNote, mode, loading) {
+  const tip = $("tooltip");
+  const title = mode === "sentence" ? "문장 해석" : (mode === "selection" ? "선택 영역 해석" : "단어 뜻");
+  let html = '<div class="tip-head"><p class="tip-label">' + title + '</p>';
+  html += '<button type="button" class="tip-close" data-action="close-tip" aria-label="닫기">✕</button></div>';
+  if (loading) {
+    html += '<p class="tip-meaning tip-loading">AI가 뜻을 찾는 중…</p>';
+    html += '<p class="tip-word">' + esc(word) + "</p>";
+  } else if (mode === "word" || mode === "selection") {
+    html += '<p class="tip-meaning">' + esc(meaning) + "</p>";
+    html += '<p class="tip-word">' + esc(word) + "</p>";
+  } else {
+    html += '<p class="tip-word">' + esc(word) + "</p>";
+    html += '<p class="tip-meaning">' + esc(meaning) + "</p>";
+  }
+  if (!loading && pron) html += '<p class="tip-pron">' + esc(pron) + "</p>";
+  if (!loading && contextNote) {
+    html += '<p class="tip-note">💡 ' + esc(contextNote) + "</p>";
+  }
+  if (!loading && example && mode === "word") {
+    html += '<p class="tip-example">예: ' + esc(example) + "</p>";
+  }
+  if (!loading && mode === "word") {
+    html += '<div class="mt-2 flex gap-2"><button type="button" class="rounded-xl bg-violet-100 px-2 py-1 text-xs font-extrabold text-violet-700 dark:bg-slate-700 dark:text-white" data-action="speak" data-speak="' + esc(word) + '">🔊 발음</button><button type="button" class="rounded-xl bg-pink-100 px-2 py-1 text-xs font-extrabold text-pink-700 dark:bg-pink-900 dark:text-white" data-action="save-word" data-word="' + esc(word) + '" data-meaning="' + esc(meaning) + '" data-pron="' + esc(pron) + '" data-example="' + esc(example || word) + '">단어장 저장</button></div>';
+  } else if (!loading) {
+    html += '<div class="mt-2"><button type="button" class="rounded-xl bg-violet-100 px-2 py-1 text-xs font-extrabold text-violet-700 dark:bg-slate-700 dark:text-white" data-action="speak" data-speak="' + esc(word) + '">🔊 읽어 주기</button></div>';
+  }
+  tip.innerHTML = html;
   tip.classList.remove("hidden");
-  const rect = btn.getBoundingClientRect();
-  tip.style.left = Math.max(8, Math.min(rect.left, window.innerWidth - 250)) + "px";
-  tip.style.top = Math.max(8, Math.min(rect.bottom + 8, window.innerHeight - 180)) + "px";
+  tip.classList.remove("tip-pop");
+  void tip.offsetWidth;
+  tip.classList.add("tip-pop");
+  tipState.open = true;
+  tipState.mode = mode || "word";
+}
+
+function tipKeyForWord(btn) {
+  return "word:" + String(btn.dataset.word || "").toLowerCase();
+}
+
+function tipKeyForSentence(btn) {
+  return "sentence:" + String(btn.dataset.en || "").slice(0, 80).toLowerCase();
+}
+
+function tipKeyForSelection(text) {
+  return "selection:" + String(text || "").toLowerCase();
+}
+
+function getInterpretChip() {
+  let chip = document.getElementById("interpretChip");
+  if (chip) return chip;
+  chip = document.createElement("button");
+  chip.type = "button";
+  chip.id = "interpretChip";
+  chip.className = "interpret-chip hidden";
+  chip.dataset.action = "interpret-selection";
+  chip.textContent = "해석하기";
+  document.body.appendChild(chip);
+  return chip;
+}
+
+function hideInterpretChip() {
+  const chip = document.getElementById("interpretChip");
+  if (chip) chip.classList.add("hidden");
+  pendingSelection = { text: "", rect: null };
+}
+
+function showInterpretChip(text, rect, clientX, clientY) {
+  const chip = getInterpretChip();
+  pendingSelection = { text: text, rect: rect };
+  const left = Math.max(8, Math.min((typeof clientX === "number" ? clientX : rect.left) + 8, window.innerWidth - 110));
+  const top = Math.max(8, Math.min((typeof clientY === "number" ? clientY : rect.bottom) + 10, window.innerHeight - 44));
+  chip.style.left = left + "px";
+  chip.style.top = top + "px";
+  chip.classList.remove("hidden");
+}
+
+function cacheAiGloss(word, sentence, gloss) {
+  const key = String(word || "").toLowerCase() + "::" + String(sentence || "").slice(0, 100).toLowerCase();
+  aiGlossCache[key] = gloss;
+  const bankKey = String(word || "").toLowerCase();
+  if (bankKey && gloss && gloss.meaning) {
+    WORD_BANK[bankKey] = {
+      meaning: gloss.meaning,
+      pron: gloss.pron || ("/" + bankKey + "/")
+    };
+  }
+  return gloss;
+}
+
+function readAiGlossCache(word, sentence) {
+  const key = String(word || "").toLowerCase() + "::" + String(sentence || "").slice(0, 100).toLowerCase();
+  return aiGlossCache[key] || null;
+}
+
+async function fetchAiWordGloss(word, sentence) {
+  const cached = readAiGlossCache(word, sentence);
+  if (cached) return cached;
+  const apiKey = getGroqApiKey();
+  if (!apiKey) return null;
+  const systemPrompt = "You are a children's English dictionary API that MUST respond ONLY with a valid JSON object.\nReturn JSON with keys: meaning (short accurate Korean gloss, comma-separated if multiple), role (one friendly Korean sentence about how the word is used in THIS sentence, e.g. '~할 때', '뻗은'), pron (simple IPA-like pronunciation like /as/).\nNo markdown. No extra keys.";
+  const userMessage = "Word: " + word + "\nSentence: " + sentence + "\nExplain the word's Korean meaning and its role in this sentence for an elementary learner.";
+  const models = ["openai/gpt-oss-20b", "openai/gpt-oss-120b"];
+  let lastError = null;
+  for (let i = 0; i < models.length; i++) {
+    try {
+      const data = await callGroqChatJson(apiKey, models[i], systemPrompt, userMessage, 0.2);
+      const meaning = String((data && (data.meaning || data.korean || data.gloss)) || "").trim();
+      const role = String((data && (data.role || data.context || data.note)) || "").trim();
+      const pron = String((data && data.pron) || ("/" + String(word).toLowerCase() + "/")).trim();
+      if (!meaning) throw new Error("empty meaning");
+      return cacheAiGloss(word, sentence, { meaning: meaning, role: role, pron: pron });
+    } catch (err) {
+      lastError = err;
+      console.warn("[StoryLoom] AI 단어 뜻 실패:", models[i], err && err.message);
+    }
+  }
+  console.warn("[StoryLoom] AI 단어 뜻 최종 실패:", lastError);
+  return null;
+}
+
+async function fetchAiPhraseGloss(phrase, pageContext) {
+  const cacheKey = "phrase::" + String(phrase || "").toLowerCase().slice(0, 160);
+  if (aiGlossCache[cacheKey]) return aiGlossCache[cacheKey];
+  const apiKey = getGroqApiKey();
+  if (!apiKey) return null;
+  const systemPrompt = "You are a children's English reading helper API that MUST respond ONLY with a valid JSON object.\nReturn JSON with keys: translation (natural Korean translation of the selected English), note (one short friendly Korean explanation).\nNo markdown.";
+  const userMessage = "Selected English: " + phrase + "\nStory context: " + (pageContext || "") + "\nTranslate for an elementary Korean learner.";
+  const models = ["openai/gpt-oss-20b", "openai/gpt-oss-120b"];
+  for (let i = 0; i < models.length; i++) {
+    try {
+      const data = await callGroqChatJson(apiKey, models[i], systemPrompt, userMessage, 0.3);
+      const translation = String((data && (data.translation || data.korean || data.meaning)) || "").trim();
+      const note = String((data && (data.note || data.role || data.context)) || "").trim();
+      if (!translation) throw new Error("empty translation");
+      const gloss = { meaning: translation, role: note || "선택한 구절의 해석이에요.", pron: "" };
+      aiGlossCache[cacheKey] = gloss;
+      return gloss;
+    } catch (err) {
+      console.warn("[StoryLoom] AI 구절 해석 실패:", models[i], err && err.message);
+    }
+  }
+  return null;
+}
+
+async function showTooltip(btn, forceAi) {
+  const key = tipKeyForWord(btn);
+  if (!forceAi && isTooltipVisible() && tipState.key === key) {
+    hideTooltip();
+    return;
+  }
+  const word = btn.dataset.word || "";
+  const sentence = btn.dataset.sentence || btn.dataset.example || "";
+  const resolved = resolveWordInfo(word);
+  let meaning = (!isWeakMeaning(btn.dataset.meaning) ? btn.dataset.meaning : "") || resolved.meaning;
+  let pron = btn.dataset.pron || resolved.pron || "";
+  let contextNote = btn.dataset.context || "";
+  tipState.key = key;
+  clearWordTipHighlight();
+  btn.classList.add("is-tip-open");
+  placeTooltipNear(btn.getBoundingClientRect());
+
+  const needsAi = forceAi || isWeakMeaning(meaning);
+  if (needsAi) {
+    fillTooltipContent(word, meaning || "찾는 중…", pron, sentence, contextNote, "word", true);
+    tipState.key = key;
+    const ai = await fetchAiWordGloss(word, sentence);
+    if (tipState.key !== key) return;
+    if (ai) {
+      meaning = ai.meaning;
+      pron = ai.pron || pron;
+      contextNote = ai.role || contextNote;
+      btn.dataset.meaning = meaning;
+      btn.dataset.pron = pron;
+      if (ai.role) btn.dataset.context = ai.role;
+    } else if (isWeakMeaning(meaning)) {
+      meaning = "뜻을 불러오지 못했어요. 잠시 후 다시 눌러 주세요.";
+    }
+  }
+  fillTooltipContent(word, meaning, pron, sentence, contextNote, "word", false);
+  tipState.key = key;
+  placeTooltipNear(btn.getBoundingClientRect());
+}
+
+function showSentenceTooltip(btn) {
+  const key = tipKeyForSentence(btn);
+  if (isTooltipVisible() && tipState.key === key) {
+    hideTooltip();
+    return;
+  }
+  const en = btn.dataset.en || "";
+  const ko = btn.dataset.ko || "이 문장의 뜻을 확인해 보세요.";
+  fillTooltipContent(en, ko, "", "", "이 문장 전체의 한국어 뜻이에요.", "sentence");
+  tipState.key = key;
+  placeTooltipNear(btn.getBoundingClientRect());
+}
+
+function matchSelectionToPageKorean(selectedText) {
+  const page = storyPages[currentPage];
+  if (!page) return "";
+  const enText = page.text_en || plainLine(page.en || []);
+  const koText = page.text_ko || page.kr || "";
+  const selected = String(selectedText || "").replace(/\s+/g, " ").trim().toLowerCase();
+  if (!selected) return "";
+  const enSentences = splitEnglishSentences(enText);
+  const koSentences = splitKoreanSentences(koText);
+  for (let i = 0; i < enSentences.length; i++) {
+    const sent = enSentences[i].replace(/\s+/g, " ").trim().toLowerCase();
+    if (sent === selected || sent.includes(selected) || selected.includes(sent.replace(/[.!?]+$/, ""))) {
+      return koSentences[i] || koText;
+    }
+  }
+  const fullEn = enText.replace(/\s+/g, " ").trim().toLowerCase();
+  if (fullEn === selected || (selected.length > 20 && fullEn.includes(selected))) {
+    return koText;
+  }
+  return "";
+}
+
+function maybeShowInterpretChip(event) {
+  if (state.showTranslation) {
+    hideInterpretChip();
+    return;
+  }
+  const sel = window.getSelection();
+  if (!sel || sel.rangeCount === 0 || sel.isCollapsed) {
+    hideInterpretChip();
+    return;
+  }
+  const text = String(sel.toString() || "").replace(/\s+/g, " ").trim();
+  if (!text || text.length < 2) {
+    hideInterpretChip();
+    return;
+  }
+  const node = sel.anchorNode && (sel.anchorNode.nodeType === 3 ? sel.anchorNode.parentElement : sel.anchorNode);
+  if (!node || (!node.closest("#plainStory") && !node.closest("#flipPage"))) {
+    hideInterpretChip();
+    return;
+  }
+  // 단어 하나만 살짝 선택된 단순 클릭은 칩을 띄우지 않음 (더블클릭/클릭 툴팁 사용)
+  const words = text.match(/[A-Za-z']+/g) || [];
+  if (words.length <= 1 && !/\s/.test(text)) {
+    hideInterpretChip();
+    return;
+  }
+  const rect = sel.getRangeAt(0).getBoundingClientRect();
+  showInterpretChip(
+    text,
+    rect,
+    event && typeof event.clientX === "number" ? event.clientX : undefined,
+    event && typeof event.clientY === "number" ? event.clientY : undefined
+  );
+}
+
+async function runInterpretSelection() {
+  const text = String(pendingSelection.text || "").trim();
+  if (!text) {
+    hideInterpretChip();
+    return;
+  }
+  const key = tipKeyForSelection(text);
+  const rect = pendingSelection.rect || { left: 24, bottom: 120, top: 100 };
+  hideInterpretChip();
+  fillTooltipContent(text, "해석 중…", "", text, "", "selection", true);
+  tipState.key = key;
+  placeTooltipNear(rect);
+
+  const page = storyPages[currentPage];
+  const pageKo = matchSelectionToPageKorean(text);
+  const pageEn = page ? (page.text_en || plainLine(page.en || [])) : "";
+  let meaning = pageKo;
+  let note = pageKo ? "선택한 구절이 문장과 맞아, 장면 한국어를 보여 드려요." : "";
+
+  if (!meaning) {
+    const ai = await fetchAiPhraseGloss(text, pageEn);
+    if (tipState.key !== key) return;
+    if (ai) {
+      meaning = ai.meaning;
+      note = ai.role || "선택한 구절의 AI 해석이에요.";
+    } else {
+      meaning = lookupPhraseMeaning(text);
+      note = "사전 뜻으로 이어서 보여 드려요.";
+    }
+  }
+  fillTooltipContent(text, meaning, "", text, note, "selection", false);
+  tipState.key = key;
+  placeTooltipNear(rect);
 }
 
 function updateUI() {
@@ -455,34 +1357,36 @@ function updateUI() {
   const show = state.showTranslation;
   const interactive = !show;
   const title = state.story ? state.story.title : "";
+  const storyHtml = renderInteractiveStoryHtml(page, interactive);
   $("reader").classList.remove("hidden");
   $("flipWrap").classList.remove("hidden");
-  $("plainStory").innerHTML = '<div class="rounded-2xl bg-violet-50/70 p-4 dark:bg-slate-900"><p class="text-xs font-extrabold text-violet-400 dark:text-gray-200">Scene ' + page.scene + '</p><p class="mt-1 text-lg font-extrabold leading-relaxed">' + tokensToHtml(page.en, interactive) + '</p><p class="mt-2 text-sm font-bold text-slate-600 dark:text-gray-200 ' + (show ? "" : "hidden") + '">' + esc(page.text_ko) + "</p></div>";
+  $("plainStory").innerHTML = '<div class="rounded-2xl bg-violet-50/70 p-4 dark:bg-slate-900"><p class="text-xs font-extrabold text-violet-400 dark:text-gray-200">Scene ' + page.scene + '</p><div class="mt-1 text-lg font-extrabold leading-relaxed">' + storyHtml + '</div><p class="mt-2 text-sm font-bold text-slate-600 dark:text-gray-200 ' + (show ? "" : "hidden") + '">' + esc(page.text_ko) + "</p></div>";
   $("switchUi").classList.toggle("on", show);
   $("transToggle").setAttribute("aria-pressed", String(show));
   const picture = $("storybook-image");
   picture.src = page.image || currentTemplateImage || "images/three_pigs.png";
   picture.alt = title || "동화 삽화";
-  $("flipPage").innerHTML = '<p class="text-xs font-extrabold text-amber-700 dark:text-white">' + esc(title) + ' · Scene ' + page.scene + '</p><p class="mt-4 text-xl font-extrabold leading-relaxed text-slate-900 dark:text-white">' + tokensToHtml(page.en, interactive) + '</p><p class="mt-4 text-sm font-bold text-slate-600 dark:text-gray-200 ' + (show ? "" : "hidden") + '">' + esc(page.text_ko) + "</p>";
+  $("flipPage").innerHTML = '<p class="text-xs font-extrabold text-amber-700 dark:text-white">' + esc(title) + ' · Scene ' + page.scene + '</p><div class="mt-4 text-xl font-extrabold leading-relaxed text-slate-900 dark:text-white">' + storyHtml + '</div><p class="mt-4 text-sm font-bold text-slate-600 dark:text-gray-200 ' + (show ? "" : "hidden") + '">' + esc(page.text_ko) + "</p>";
 }
 
 function renderPlain() { updateUI(); }
 function renderFlip() { updateUI(); }
 
 function appendStoryPage(page) {
+  ensureClassicOpeningPage();
   const selected = CLASSIC_STORIES[state.template] || CLASSIC_STORIES.pigs;
   const tpl = TEMPLATES[state.template] || TEMPLATES.pigs;
-  const image = currentTemplateImage || selected.image;
+  const image = page.image || currentTemplateImage || selected.image;
   if (!state.story) {
     state.story = {
-      id: "classic-" + state.template,
-      templateKey: state.template,
+      id: "classic-" + (state.template || "pigs"),
+      templateKey: state.template || "pigs",
       title: selected.title,
       kr: tpl.title,
       emoji: tpl.emoji,
       cover: tpl.cover,
       art: tpl.art,
-      image: image,
+      image: selected.image,
       note: tpl.title,
       pages: storyPages,
       published: false,
@@ -490,16 +1394,18 @@ function appendStoryPage(page) {
     };
   }
   state.story.pages = storyPages;
-  state.story.image = image;
+  state.story.image = selected.image;
   const textEn = page.text_en || plainLine(page.en || []);
   const textKo = page.text_ko || page.kr || "";
+  // Scene 1(오프닝)은 절대 덮어쓰지 않고 항상 뒤에 새 장면을 추가
   storyPages.push({
     scene: storyPages.length + 1,
     text_en: textEn,
     text_ko: textKo,
     image: image,
     en: page.en || sentenceToTokens(textEn, []),
-    kr: textKo
+    kr: textKo,
+    isOpening: false
   });
   currentPage = storyPages.length - 1;
   $("reader").classList.remove("hidden");
@@ -769,18 +1675,50 @@ function toggleTheme() {
   renderCharacter();
 }
 
-document.body.addEventListener("mouseover", (event) => {
+document.addEventListener("mouseup", (event) => {
+  if (event.target && event.target.closest && event.target.closest("#interpretChip")) return;
+  clearTimeout(interpretChipTimer);
+  interpretChipTimer = setTimeout(() => maybeShowInterpretChip(event), 10);
+});
+
+document.addEventListener("touchend", (event) => {
+  const touch = event.changedTouches && event.changedTouches[0];
+  const fakeEvent = touch ? { clientX: touch.clientX, clientY: touch.clientY, target: event.target } : event;
+  clearTimeout(interpretChipTimer);
+  interpretChipTimer = setTimeout(() => maybeShowInterpretChip(fakeEvent), 30);
+}, { passive: true });
+
+document.body.addEventListener("dblclick", (event) => {
   const word = event.target.closest("[data-action='word']");
-  if (word) showTooltip(word);
+  if (!word) return;
+  if (state.showTranslation) return;
+  event.preventDefault();
+  event.stopPropagation();
+  clearTimeout(wordClickTimer);
+  hideInterpretChip();
+  showTooltip(word, true);
 });
 
 document.body.addEventListener("click", (event) => {
   const el = event.target.closest("[data-action]");
   if (!el) {
-    if (!event.target.closest("#tooltip")) hideTooltip();
+    if (!event.target.closest("#tooltip") && !event.target.closest("#interpretChip")) {
+      hideTooltip();
+      hideInterpretChip();
+    }
     return;
   }
   const action = el.dataset.action;
+  if (action === "close-tip") {
+    event.stopPropagation();
+    hideTooltip();
+    return;
+  }
+  if (action === "interpret-selection") {
+    event.stopPropagation();
+    runInterpretSelection();
+    return;
+  }
   if (action === "tab") setTab(el.dataset.tab);
   if (action === "character" && CHARACTERS[el.dataset.id]) {
     state.character = el.dataset.id;
@@ -793,18 +1731,33 @@ document.body.addEventListener("click", (event) => {
     toast(LEVELS[state.level].label + " 난이도로 바꿨어요.");
   }
   if (action === "template") {
-    state.template = el.dataset.tpl;
+    const tplKey = el.dataset.tpl;
+    state.template = tplKey;
     renderComposer();
-    resetStoryBook(el.dataset.tpl);
+    resetStoryBook(tplKey);
+    console.log("[StoryLoom] 템플릿 Scene 1 로드:", tplKey, storyPages[0] && storyPages[0].text_en);
   }
   if (action === "choice") {
-    $("relayInput").value = el.dataset.choice;
-    $("relayInput").focus();
+    fillRelayInputWithChoice(el.dataset.choice || el.textContent || "");
   }
   if (action === "scroll-create") $("composer").scrollIntoView({ behavior: "smooth", block: "center" });
   if (action === "word") {
     event.stopPropagation();
-    showTooltip(el);
+    hideInterpretChip();
+    clearTimeout(wordClickTimer);
+    wordClickTimer = setTimeout(() => showTooltip(el, false), 220);
+  }
+  if (action === "sentence-tip") {
+    event.stopPropagation();
+    hideInterpretChip();
+    showSentenceTooltip(el);
+  }
+  if (action === "sentence-body") {
+    // 단어/문장해석 버튼 클릭이 아닐 때만 문장 전체 팝업
+    if (event.target.closest("[data-action='word']") || event.target.closest("[data-action='sentence-tip']")) return;
+    event.stopPropagation();
+    hideInterpretChip();
+    showSentenceTooltip(el);
   }
   if (action === "speak") {
     event.stopPropagation();
@@ -834,116 +1787,355 @@ function showStoryLoading() {
 }
 
 function parseGeminiJson(raw) {
-  const cleaned = String(raw || "")
-    .replace(/```json/gi, "")
-    .replace(/```/g, "")
-    .trim();
+  let cleaned = String(raw || "");
+  cleaned = cleaned.replace(/```json/gi, "").replace(/```/g, "").trim();
+  cleaned = cleaned.replace(/^\uFEFF/, "");
   try {
     return JSON.parse(cleaned);
-  } catch (err) {
+  } catch (err1) {
     const start = cleaned.indexOf("{");
     const end = cleaned.lastIndexOf("}");
     if (start < 0 || end < start) throw new Error("JSON 없음");
-    return JSON.parse(cleaned.slice(start, end + 1));
+    let slice = cleaned.slice(start, end + 1);
+    slice = slice.replace(/,\s*([}\]])/g, "$1");
+    try {
+      return JSON.parse(slice);
+    } catch (err2) {
+      const eng = slice.match(/"english"\s*:\s*"((?:\\.|[^"\\])*)"/i);
+      const kor = slice.match(/"korean"\s*:\s*"((?:\\.|[^"\\])*)"/i);
+      const eng2 = slice.match(/"story_en"\s*:\s*"((?:\\.|[^"\\])*)"/i);
+      const kor2 = slice.match(/"story_ko"\s*:\s*"((?:\\.|[^"\\])*)"/i);
+      const english = eng ? eng[1] : (eng2 ? eng2[1] : "");
+      const korean = kor ? kor[1] : (kor2 ? kor2[1] : "");
+      if (english && korean) {
+        let suggestions = [];
+        const sugMatch = slice.match(/"suggestions"\s*:\s*\[((?:.|\n|\r)*?)\]/i);
+        if (sugMatch) {
+          suggestions = extractSuggestionsList(
+            sugMatch[1].split(",").map((part) => part.replace(/^[\s"]+|[\s"]+$/g, "").trim())
+          );
+        }
+        return {
+          english: english.replace(/\\"/g, '"').replace(/\\n/g, " "),
+          korean: korean.replace(/\\"/g, '"').replace(/\\n/g, " "),
+          suggestions: suggestions
+        };
+      }
+      throw err2;
+    }
   }
 }
 
-async function callGemini(url, prompt) {
-  const response = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      contents: [{ parts: [{ text: prompt }] }]
-    })
-  });
+function extractStoryFromLooseText(raw) {
+  const text = String(raw || "").replace(/```json/gi, "").replace(/```/g, "").trim();
+  if (!text) return null;
+  try {
+    return normalizeGeminiPayload(parseGeminiJson(text));
+  } catch (err) { /* 아래에서 느슨하게 추출 */ }
+  const engMatch = text.match(/"english"\s*:\s*"((?:\\.|[^"\\])*)"/i) || text.match(/english\s*[:=]\s*["']?([^\n"']+)/i);
+  const korMatch = text.match(/"korean"\s*:\s*"((?:\\.|[^"\\])*)"/i) || text.match(/korean\s*[:=]\s*["']?([^\n"']+)/i);
+  let english = engMatch ? String(engMatch[1] || "").replace(/\\"/g, '"').trim() : "";
+  let korean = korMatch ? String(korMatch[1] || "").replace(/\\"/g, '"').trim() : "";
+  if (!english || !korean) {
+    const lines = text.split(/\n+/).map((line) => line.trim()).filter(Boolean);
+    const enLine = lines.find((line) => /^[A-Za-z]/.test(line) && !/korean|english|words/i.test(line));
+    const koLine = lines.find((line) => /[가-힣]/.test(line) && !/korean|english|words/i.test(line));
+    if (!english && enLine) english = enLine.replace(/^["']|["']$/g, "");
+    if (!korean && koLine) korean = koLine.replace(/^["']|["']$/g, "");
+  }
+  if (!english || !korean) return null;
+  return normalizeGeminiPayload({ english: english, korean: korean, words: [] });
+}
+
+function keywordTokens(userInput) {
+  return String(userInput || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .split(/\s+/)
+    .filter((token) => token.length > 2 && !/^(the|and|for|with|from|into|that|this|was|were|are)$/.test(token));
+}
+
+function storyIgnoresUserKeyword(userInput, english) {
+  const input = String(userInput || "").trim();
+  if (!input || /[가-힣]/.test(input)) return false;
+  const tokens = keywordTokens(input);
+  if (!tokens.length) return false;
+  const en = String(english || "").toLowerCase();
+  return !tokens.every((token) => en.includes(token));
+}
+
+function softFallbackSuggestions(key, input, english) {
+  const lower = String(input || "").toLowerCase();
+  if (/map of stars|별.?지도/.test(lower)) {
+    return filterSuggestionsAgainstFullStory(["follow the stars", "a glowing path", "a friendly owl"], english, input);
+  }
+  if (/cloud house|구름.?집/.test(lower)) {
+    return filterSuggestionsAgainstFullStory(["a windy climb", "a floating ladder", "a cotton ladder"], english, input);
+  }
+  if (/candy house|과자.?집/.test(lower)) {
+    return filterSuggestionsAgainstFullStory(["a chocolate door", "sticky frosting", "a sugar bridge"], english, input);
+  }
+  if (/잡아먹|gobble|devour|ate/.test(lower)) {
+    return filterSuggestionsAgainstFullStory(["a brave rescue", "a loud shout", "a clever trick"], english, input);
+  }
+  if (/늑대|wolf/.test(lower)) {
+    return filterSuggestionsAgainstFullStory(["a loud huff", "a locked door", "a brave shout"], english, input);
+  }
+  return filterSuggestionsAgainstFullStory(
+    ["a hidden trail", "a mysterious box", "a friendly bird"],
+    english,
+    input
+  );
+}
+
+function softFallbackStory() {
+  // 고정 문장 틀에 입력을 끼워 넣는 합성은 사용하지 않습니다. API 응답만 화면에 표시합니다.
+  throw new Error("Groq API 장면을 받지 못했습니다. 잠시 후 다시 시도해 주세요.");
+}
+
+const SYSTEM_PROMPT = "You are a story generation API that MUST respond ONLY with a valid JSON object.\nYou are a creative children's fairy tale author.\n\n[STRICT NARRATIVE RULES]\n1. Universal Override: Break the original fairy tale plot immediately. The user's input strictly dictates the next event.\n1-1. User Keyword Priority: The user's exact input word/phrase (e.g., \"mysterious map\") MUST appear as a core story object or action in the next english scene. Do NOT ignore it, replace it with a vague synonym-only detour, or drift into an unrelated plot.\n1-2. Arrival & Entry Process: If the user names a new place (e.g., a cottage) or asks to move there, NEVER teleport characters instantly inside. First vividly describe discovering it, walking closer, and then opening the door / stepping in as a natural arrival-and-entry beat within the scene.\n1-3. Intelligent Narrative Conversion (No Meta Speech): If the user input contains instruction-like meta phrasing (e.g., \"~라고 했다\", \"~해 줘\", \"said that\", \"tell them to\"), DO NOT paste that meta wording into the story. Convert it into the character's or object's real spoken dialogue in quotation marks and/or vivid action. Example: user says \"장신구가 도망치라고 했다\" -> write that the charm glows warmly and speaks, \"It's dangerous here—run away now!\" (or equivalent natural fairy-tale action/dialogue).\n2. Negative Statements: Pay extreme attention to negative words ('not', 'didn't', '않았다', '없다'). If the user says an event did NOT happen, NEVER let it happen.\n3. No Repetition: DO NOT repeat previous scenes or sentences. Always progress the story forward to a NEW event.\n4. Exact Action Focus: Focus on specific actions from the user's input.\n4-1. Goose Movement Tone: When describing a goose, NEVER use awkward wording like \"waddle/waddling\". Prefer warm, cute, fairy-tale friendly movement (e.g., softly paddled, gently hopped beside him, nestled close, walked proudly with tiny steps).\n4-2. Squirrel & Map Continuity: If a squirrel appeared in previous scenes and the user input is about a map (e.g., \"mysterious map\"), continue naturally: the squirrel hops over, greets the boy warmly, then takes a mysterious map / parchment from its pouch and places it in the boy's hands to guide the way.\n5. Perfect Translation: The korean field MUST be a 1:1 accurate, intuitive translation of the generated english sentence word by word in meaning (e.g., mysterious box -> 신비한 상자, strange noise -> 이상한 소리). NEVER use a fixed Korean template that does not match the English. Never leave raw English words in the Korean text.\n5-1. Korean Spoken Tone (해요체): The korean text MUST use warm, friendly spoken Korean ending style (해요체) with endings like \"~어요\", \"~했어요\", \"~답니다\", \"~거든요\". NEVER use stiff written/literary endings (문어체). Examples: \"~지었다\" -> \"~지었어요\"; \"~느꼈다\" -> \"~느꼈답니다\"; \"~흩어졌다\" -> \"~흩어졌어요\".\n5-2. Fairy-tale Kinship Terms: When translating kinship/cottage words, use warm fairy-tale Korean, NOT stiff literal phrasing. Examples: elder / grandmother / grandma -> \"할머니\"; elder's cottage / grandmother's cottage -> \"할머니의 오두막\". NEVER translate as awkward formal phrases like \"연세가 많은 분\". For \"mysterious map\" prefer \"신비로운 지도\" or \"비밀 지도(양피지)\".\n6. Unique Sentence Frames: NEVER use repeating sentence frames like 'Then X discovered Y and Z'. Every new scene MUST use a unique sentence structure and fresh vocabulary. Invent a brand-new English sentence from scratch each time — do not fill blanks in a fixed template.\n\n[STRICT SUGGESTIONS RULES (RECOMMENDED WORDS)]\n- Purpose: Suggestions MUST be 3 FORWARD-LOOKING plot hooks for the NEXT upcoming scene.\n- NO REPETITION: NEVER use words, nouns, or adjectives that appeared in past scenes (e.g., if 'brick', 'house', 'built' were used, NEVER include them in suggestions).\n- COMPLETE PHRASES ONLY: Every suggestion MUST be a natural 2-4 word English phrase (e.g., 'a strange noise', 'open a secret door', 'a helpful friendly bird'). NEVER output broken fragments like 'a built', 'a strong', or single incomplete words.\n- 3 DIVERSE PATHS: Give 3 completely different options for where the story could go next.\n\n[OUTPUT FORMAT]\nReturn ONLY a valid JSON object:\n{\n  \"english\": \"1-2 English sentences for the next scene\",\n  \"korean\": \"자연스러운 한국어 번역\",\n  \"suggestions\": [\"phrase 1\", \"phrase 2\", \"phrase 3\"]\n}";
+
+async function callGroqChatJson(apiKey, model, systemPrompt, userMessage, temperature) {
+  const trimmedKey = String(apiKey || "").trim();
+  if (!trimmedKey || trimmedKey.indexOf("gsk_") !== 0) {
+    console.error("API Key null/undefined");
+    throw new Error("GROQ_API_KEY가 유효하지 않습니다.");
+  }
+  console.log("[StoryLoom] Groq 모델 요청:", model);
+  let response;
+  try {
+    response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: "Bearer " + trimmedKey
+      },
+      body: JSON.stringify({
+        model: model,
+        temperature: typeof temperature === "number" ? temperature : 0.8,
+        response_format: { type: "json_object" },
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userMessage }
+        ]
+      })
+    });
+  } catch (networkErr) {
+    console.error("[StoryLoom Fetch Error] 상세 원인:", networkErr && networkErr.message, networkErr && networkErr.name, networkErr);
+    throw new Error(networkErr && networkErr.message ? networkErr.message : "네트워크 오류");
+  }
   if (!response.ok) {
-    let errorData = {};
+    let errText = "";
     try {
-      errorData = await response.json();
-    } catch (parseErr) {
-      errorData = { error: { message: "HTTP " + response.status } };
+      errText = await response.text();
+    } catch (readErr) {
+      errText = "HTTP " + response.status;
     }
-    console.error("Gemini API 호출 실패 상세원인:", errorData);
-    const errMessage = (errorData.error && errorData.error.message) || JSON.stringify(errorData);
-    throw new Error(errMessage);
+    console.error("Groq Raw Error Response:", errText);
+    throw new Error("HTTP " + response.status + ": " + String(errText).slice(0, 400));
   }
   const data = await response.json();
-  const text = data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts && data.candidates[0].content.parts[0] && data.candidates[0].content.parts[0].text;
-  return parseGeminiJson(text);
-}
-
-function templateFallback(userInput) {
-  const key = CLASSIC_STORIES[state.template] ? state.template : "pigs";
-  const data = CLASSIC_STORIES[key];
-  const word = String(userInput || "").trim() || data.title;
-  const lines = {
-    pigs: {
-      story_en: "The three little pigs found " + word + " and built a safe, happy home.",
-      story_ko: "아기돼지 삼형제가 " + word + "을(를) 발견하고 안전한 집을 지었어요."
-    },
-    alice: {
-      story_en: "Alice opened " + word + " and discovered a magical garden.",
-      story_ko: "앨리스가 " + word + "을(를) 열고 신비한 정원을 발견했어요."
-    },
-    redhood: {
-      story_en: "Little Red Riding Hood carried " + word + " through the forest to visit her grandmother.",
-      story_ko: "빨간 모자가 할머니를 만나러 숲을 지나며 " + word + "을(를) 들고 갔어요."
-    },
-    goose: {
-      story_en: "A kind boy shared " + word + ", and the golden goose brought happiness to the kingdom.",
-      story_ko: "착한 소년이 " + word + "을(를) 나누자, 황금거위가 왕국에 행복을 가져다주었어요."
-    }
-  };
-  return {
-    story_en: lines[key].story_en,
-    story_ko: lines[key].story_ko,
-    image: data.image,
-    words: []
-  };
-}
-
-function sampleGeminiStory(userInput) {
-  return templateFallback(userInput);
-}
-
-async function requestGeminiStory(idea, mode) {
-  const userInput = String(idea || "").trim() || "a candy house";
-  const selected = CLASSIC_STORIES[state.template] || CLASSIC_STORIES.pigs;
-  const tpl = TEMPLATES[state.template] || TEMPLATES.pigs;
-  const promptText = mode === "classic"
-    ? `Write exactly one new sentence of a children's fairy tale about "${userInput}". Make it original for young readers. Return strictly JSON format:
-   {
- "story_en": "One English sentence for children about ${userInput}",
- "story_ko": "Korean translation of the story",
- "words": [{"word":"rabbit","meaning":"토끼","pron":"/RAB-it/"}]
-   }
-   words must list 3 to 6 important words from story_en with a Korean meaning and pronunciation. Skip a, the, and, to, of.`
-    : `Write exactly one new sentence of a children's fairy tale.
-The story is "${selected.title}" (${tpl.title}).
-Use the child's idea naturally: "${userInput}".
-Stay with this story's characters and setting.
-Return strictly JSON format:
-   {
- "story_en": "One English sentence in the ${selected.title} story that includes ${userInput}",
- "story_ko": "Korean translation of the story",
- "words": [{"word":"door","meaning":"문","pron":"/dor/"}]
-   }
-   words must list 3 to 6 important words from story_en with a Korean meaning and pronunciation. Skip a, the, and, to, of.`;
-  const apiKey = getGeminiApiKey();
-  if (!apiKey) throw new Error("GEMINI_API_KEY가 비어 있습니다. config.js를 확인해 주세요.");
-  const urls = [
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`
-  ];
-  for (let i = 0; i < urls.length; i++) {
+  const rawContent = data && data.choices && data.choices[0] && data.choices[0].message
+    ? data.choices[0].message.content
+    : "";
+  if (!rawContent || !String(rawContent).trim()) {
+    throw new Error("Groq 응답 텍스트가 비어 있습니다.");
+  }
+  const cleanJsonString = String(rawContent).replace(/```json|```/g, "").trim();
+  try {
+    return JSON.parse(cleanJsonString);
+  } catch (parseErr) {
     try {
-      return await callGemini(urls[i], promptText);
-    } catch (error) {
-      console.error("Gemini 시도 실패 " + (i + 1) + ":", error && error.message ? error.message : error);
+      return parseGeminiJson(cleanJsonString);
+    } catch (parseErr2) {
+      throw new Error("JSON 파싱 실패: " + (parseErr && parseErr.message ? parseErr.message : "unknown"));
     }
   }
-  if (mode === "classic") throw new Error("Gemini 연결 실패");
-  return templateFallback(userInput);
+}
+
+async function callGroqOnce(apiKey, model, userMessage) {
+  const trimmedKey = String(apiKey || "").trim();
+  if (!trimmedKey || trimmedKey.indexOf("gsk_") !== 0) {
+    console.error("API Key null/undefined");
+    alert("API 키 설정 확인 필요");
+    throw new Error("GROQ_API_KEY가 유효하지 않습니다.");
+  }
+  let parsedData;
+  try {
+    parsedData = await callGroqChatJson(trimmedKey, model, SYSTEM_PROMPT, userMessage, 0.8);
+  } catch (networkErr) {
+    if (networkErr && String(networkErr.message || "").indexOf("Failed to fetch") !== -1) {
+      alert("네트워크 연결 문제 또는 CORS 에러가 발생했습니다. 콘솔을 확인해 주세요.");
+    }
+    throw networkErr;
+  }
+  if (parsedData && parsedData.english && parsedData.korean) {
+    // ok
+  } else {
+    const loose = extractStoryFromLooseText(JSON.stringify(parsedData || {}));
+    if (loose && loose.english && loose.korean) {
+      parsedData = loose;
+    }
+  }
+  console.log("Groq Response Suggestions:", parsedData && parsedData.suggestions);
+  console.log("Groq Response english/korean:", parsedData && parsedData.english, parsedData && parsedData.korean);
+  const rawSuggestions = extractSuggestionsList(
+    parsedData && parsedData.suggestions != null ? parsedData.suggestions
+      : (parsedData && parsedData.keywords != null ? parsedData.keywords
+        : (parsedData && parsedData.next_suggestions != null ? parsedData.next_suggestions : null))
+  );
+  const normalized = normalizeGeminiPayload(parsedData);
+  normalized.suggestions = normalizeSuggestions(rawSuggestions, normalized.english, "");
+  normalized._apiSuggestions = rawSuggestions.slice();
+  return normalized;
+}
+
+function collectFullStoryEnglish() {
+  return storyPages.map((page, i) => {
+    const en = String(page.text_en || plainLine(page.en || []) || "").trim();
+    if (!en) return "";
+    return "Scene " + (page.scene || i + 1) + ": " + en;
+  }).filter(Boolean);
+}
+
+function previousStoryContext() {
+  const scenes = collectFullStoryEnglish();
+  if (!scenes.length) {
+    return "FULL STORY CONTEXT (Scene 1 to now):\n(No previous scenes yet. Write the next scene as a fresh continuation of this fairy tale.)";
+  }
+  return [
+    "FULL STORY CONTEXT (ALL previous English scenes from Scene 1 to now — you MUST remember every line below):",
+    scenes.join("\n"),
+    "Do NOT repeat or lightly rephrase any of the scenes above. Advance to a NEW event."
+  ].join("\n");
+}
+
+function normalizeGeminiPayload(payload) {
+  const raw = payload || {};
+  const english = String(raw.english || raw.story_en || raw.en || "").trim();
+  const korean = String(raw.korean || raw.story_ko || raw.ko || "").trim();
+  // Groq chat 응답의 choices 와 혼동하지 않도록 suggestions/keywords 만 사용
+  const suggestionSource = raw.suggestions != null ? raw.suggestions
+    : (raw.keywords != null ? raw.keywords
+      : (raw.next_suggestions != null ? raw.next_suggestions : null));
+  const out = {
+    english: english,
+    korean: korean,
+    story_en: english,
+    story_ko: korean,
+    suggestions: normalizeSuggestions(suggestionSource, english, ""),
+    words: Array.isArray(raw.words) ? raw.words : [],
+    image: raw.image
+  };
+  if (Array.isArray(raw._apiSuggestions)) out._apiSuggestions = raw._apiSuggestions.slice();
+  return out;
+}
+
+function hasMetaLanguage(text) {
+  return /child'?s idea|adventure changed|new event|user (chose|input|said)|story changed|faced a new|the process|keyword|meta/i.test(String(text || ""));
+}
+
+function koreanHasEnglishLeak(korean) {
+  return /[A-Za-z]{2,}/.test(String(korean || ""));
+}
+
+function isNearDuplicateScene(english) {
+  const next = String(english || "").toLowerCase().replace(/[^a-z0-9가-힣\s]/g, " ").replace(/\s+/g, " ").trim();
+  if (!next) return false;
+  const nextWords = next.split(" ").filter((w) => w.length > 3);
+  if (!nextWords.length) return false;
+  return collectFullStoryEnglish().some((line) => {
+    const prev = String(line || "").toLowerCase().replace(/[^a-z0-9가-힣\s]/g, " ").replace(/\s+/g, " ").trim();
+    const body = prev.replace(/^scene\s+\d+\s*:\s*/, "");
+    if (!body) return false;
+    if (body === next) return true;
+    const prevSet = new Set(body.split(" ").filter((w) => w.length > 3));
+    const hits = nextWords.filter((w) => prevSet.has(w)).length;
+    return hits / nextWords.length >= 0.8;
+  });
+}
+
+function buildFullStoryText() {
+  const selected = CLASSIC_STORIES[state.template] || CLASSIC_STORIES.pigs;
+  const tpl = TEMPLATES[state.template] || TEMPLATES.pigs;
+  const scenes = collectFullStoryEnglish();
+  const body = scenes.length ? scenes.join("\n") : "(No previous scenes yet.)";
+  return "Fairy tale: " + selected.title + " (" + tpl.en + ")\n" + body;
+}
+
+function buildUserStoryMessage(userInput) {
+  const fullStory = buildFullStoryText();
+  const input = String(userInput || "").trim();
+  return "Story History: " + fullStory + "\nUser Input: " + input;
+}
+
+async function requestGroqStory(idea) {
+  const userInput = String(idea || "").trim();
+  if (!userInput) throw new Error("입력값이 비어 있습니다.");
+  console.log("[StoryLoom] Groq 전달 입력값:", userInput);
+  console.log("[StoryLoom] Full Story Context:\n" + previousStoryContext());
+  const userMessage = buildUserStoryMessage(userInput);
+  const apiKey = String(requireGroqApiKey() || "").trim();
+  if (!apiKey) {
+    throw new Error("GROQ_API_KEY가 비어 있습니다. config.js를 확인해 주세요.");
+  }
+  const models = ["openai/gpt-oss-120b", "openai/gpt-oss-20b"];
+  let lastError = "Groq 연결 실패";
+  let sawModelNotFound = false;
+  function isModelNotFoundError(error) {
+    const msg = String((error && error.message) || error || "");
+    return msg.indexOf("404") !== -1 || /model_not_found/i.test(msg) || /model not found/i.test(msg);
+  }
+  try {
+    for (let i = 0; i < models.length; i++) {
+      const model = models[i];
+      try {
+        const normalized = await callGroqOnce(apiKey, model, userMessage);
+        if (!normalized.english || !normalized.korean) {
+          throw new Error("영어/한글 문장이 비어 있습니다.");
+        }
+        // 과도한 거부로 성공 응답이 버려지지 않도록 경고만 남기고 통과
+        if (hasMetaLanguage(normalized.english) || hasMetaLanguage(normalized.korean)) {
+          console.warn("[StoryLoom] 메타 문장 의심 (경고만):", normalized.english, normalized.korean);
+        }
+        if (koreanHasEnglishLeak(normalized.korean)) {
+          console.warn("[StoryLoom] 한글 속 영문 잔여 (경고만):", normalized.korean);
+        }
+        if (isNearDuplicateScene(normalized.english)) {
+          console.warn("[StoryLoom] 이전 장면과 유사 (경고만):", normalized.english);
+        }
+        if (storyIgnoresUserKeyword(userInput, normalized.english)) {
+          console.warn("[StoryLoom] 입력 키워드 미포함 의심 (경고만):", userInput, normalized.english);
+        }
+        console.log("[StoryLoom] Groq 성공 모델:", model);
+        return normalized;
+      } catch (error) {
+        lastError = error && error.message ? error.message : String(error);
+        console.error("[StoryLoom Fetch Error] 상세 원인:", error && error.message, error && error.name, error);
+        console.error("Groq 시도 실패 " + model + ":", lastError);
+        if (isModelNotFoundError(error)) {
+          sawModelNotFound = true;
+        }
+        if (error && String(error.message || "").indexOf("Failed to fetch") !== -1) {
+          alert("네트워크 연결 문제 또는 CORS 에러가 발생했습니다. 콘솔을 확인해 주세요.");
+          throw error;
+        }
+      }
+    }
+  } catch (error) {
+    console.error("[StoryLoom Fetch Error] 상세 원인:", error && error.message, error && error.name, error);
+    if (isModelNotFoundError(error)) {
+      alert("Groq 계정 권한 제한 상태입니다. Groq 홈페이지에서 계정 상태(전화번호 인증 등)를 확인해 주세요.");
+    } else if (error && String(error.message || "").indexOf("Failed to fetch") !== -1) {
+      alert("네트워크 연결 문제 또는 CORS 에러가 발생했습니다. 콘솔을 확인해 주세요.");
+    }
+    throw error;
+  }
+  if (sawModelNotFound) {
+    alert("Groq 계정 권한 제한 상태입니다. Groq 홈페이지에서 계정 상태(전화번호 인증 등)를 확인해 주세요.");
+  }
+  console.warn("Groq 최종 실패:", lastError, "입력값:", userInput);
+  throw new Error(lastError || "Groq API 장면을 받지 못했습니다.");
 }
 
 function glossesFrom(payload) {
@@ -967,7 +2159,9 @@ function glossesFrom(payload) {
 function storyFromGemini(payload, imageOverride) {
   const tpl = TEMPLATES[state.template] || TEMPLATES.pigs;
   const selected = CLASSIC_STORIES[state.template] || CLASSIC_STORIES.pigs;
-  const english = String(payload.story_en || "").trim().split(/\n+/).filter(Boolean).slice(0, 2).join(" ");
+  const normalized = normalizeGeminiPayload(payload);
+  const english = normalized.english.split(/\n+/).filter(Boolean).slice(0, 2).join(" ");
+  const korean = normalized.korean;
   const image = imageOverride || state.templateImage || selected.image;
   state.templateImage = image;
   return {
@@ -979,7 +2173,7 @@ function storyFromGemini(payload, imageOverride) {
     art: tpl.art,
     image: image,
     note: "AI가 만든 이야기",
-    pages: [{ en: sentenceToTokens(english, glossesFrom(payload)), kr: String(payload.story_ko || "").trim() }],
+    pages: [{ en: sentenceToTokens(english, glossesFrom(normalized)), kr: korean }],
     published: false,
     level: state.level
   };
@@ -988,42 +2182,56 @@ function storyFromGemini(payload, imageOverride) {
 $("generateBtn").addEventListener("click", async () => {
   const button = $("generateBtn");
   if (button.disabled) return;
-  if (!getGeminiApiKey()) {
-    toast("GEMINI_API_KEY가 비어 있습니다. .env와 config.js를 확인해 주세요.");
+  if (!requireGroqApiKey()) {
+    toast("GROQ_API_KEY가 비어 있습니다. .env와 config.js를 확인해 주세요.");
     return;
   }
-  const userInput = $("relayInput").value.trim();
-  const selected = CLASSIC_STORIES[state.template] || CLASSIC_STORIES.pigs;
+  const inputEl = $("relayInput") || $("user-input");
+  const userInput = inputEl ? String(inputEl.value || "").trim() : "";
+  if (!userInput) {
+    toast("이어 쓸 단어나 문장을 먼저 입력해 주세요.");
+    if (inputEl) inputEl.focus();
+    return;
+  }
+  if (!CLASSIC_STORIES[state.template]) {
+    toast("먼저 명작 동화 템플릿을 골라 주세요.");
+    return;
+  }
+  const selected = CLASSIC_STORIES[state.template];
+  ensureClassicOpeningPage();
   currentTemplateImage = selected.image;
   state.templateImage = selected.image;
   button.disabled = true;
   showStoryLoading();
   try {
-    const payload = await requestGeminiStory(userInput, "compose");
+    const payload = normalizeGeminiPayload(await requestGroqStory(userInput));
+    const textEn = String(payload.english || "").trim();
+    const textKo = String(payload.korean || "").trim();
+    if (!textEn || !textKo) throw new Error("API 응답에 english/korean이 없습니다.");
     const story = storyFromGemini(payload, selected.image);
     const page = story.pages[0];
+    // 사용자 입력으로 만든 장면은 Scene 2부터 추가 (Scene 1 오프닝 보존)
     appendStoryPage({
-      scene: state.storyPages.length + 1,
-      text_en: plainLine(page.en),
-      text_ko: page.kr,
+      scene: storyPages.length + 1,
+      text_en: textEn,
+      text_ko: textKo,
       image: selected.image,
       en: page.en,
-      kr: page.kr
+      kr: textKo
     });
-    toast("AI 동화가 완성됐어요. 책장을 넘겨 보세요.");
+    updateSuggestionButtonsFromApi({
+      english: textEn,
+      suggestions: (payload && payload._apiSuggestions && payload._apiSuggestions.length)
+        ? payload._apiSuggestions
+        : (payload && payload.suggestions)
+    }, textEn, userInput);
+    toast("다음 장면이 만들어졌어요. 책장을 넘겨 보세요.");
   } catch (error) {
-    console.error("Gemini 호출 오류:", error);
-    const story = storyFromGemini(templateFallback(userInput), selected.image);
-    const page = story.pages[0];
-    appendStoryPage({
-      scene: state.storyPages.length + 1,
-      text_en: plainLine(page.en),
-      text_ko: page.kr,
-      image: selected.image,
-      en: page.en,
-      kr: page.kr
-    });
+    console.error("동화 생성 처리 오류:", error);
+    updateUI();
+    toast("동화를 만들지 못했어요. 잠시 후 다시 시도해 주세요.");
   } finally {
+    if (inputEl) inputEl.value = "";
     button.disabled = false;
   }
 });

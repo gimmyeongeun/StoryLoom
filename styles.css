@@ -36,6 +36,168 @@ html.dark .lvl-btn:not(.lvl-on) {
 @keyframes shake { 20% { transform: translateX(-6px); } 40% { transform: translateX(6px); } 60% { transform: translateX(-4px); } 80% { transform: translateX(4px); } }
 .tip-pop { animation: pop .18s ease; }
 @keyframes pop { from { transform: translateY(6px); opacity: 0; } to { transform: none; opacity: 1; } }
+.word-btn {
+  display: inline;
+  padding: 2px 3px;
+  margin: 0;
+  line-height: 1.65;
+  border-radius: 6px;
+  vertical-align: baseline;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  user-select: text;
+  -webkit-user-select: text;
+}
+.story-sentence {
+  user-select: text;
+  -webkit-user-select: text;
+  cursor: text;
+}
+.word-btn:hover,
+.word-btn:focus-visible {
+  background: rgba(139, 124, 247, 0.14);
+  outline: none;
+}
+html.dark .word-btn:hover,
+html.dark .word-btn:focus-visible {
+  background: rgba(167, 139, 250, 0.22);
+}
+.sentence-tip-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(139, 124, 247, 0.35);
+  background: rgba(139, 124, 247, 0.1);
+  color: #6d5ef5;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.4;
+  vertical-align: middle;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.sentence-tip-btn:hover,
+.sentence-tip-btn:focus-visible {
+  background: rgba(139, 124, 247, 0.2);
+  outline: none;
+}
+html.dark .sentence-tip-btn {
+  border-color: rgba(196, 181, 253, 0.35);
+  background: rgba(167, 139, 250, 0.18);
+  color: #e9d5ff;
+}
+.story-sentence + .story-sentence {
+  margin-top: 0.55rem;
+}
+#tooltip {
+  max-width: min(320px, calc(100vw - 24px));
+}
+#tooltip .tip-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+#tooltip .tip-label {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #8b7cf7;
+}
+#tooltip .tip-close {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: 999px;
+  background: #f3f0ff;
+  color: #6d5ef5;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1;
+  cursor: pointer;
+}
+#tooltip .tip-close:hover {
+  background: #e8e2ff;
+}
+#tooltip .tip-meaning {
+  margin: 2px 0 0;
+  font-size: 1.15rem;
+  font-weight: 900;
+  line-height: 1.35;
+  color: #5b4fd6;
+}
+#tooltip .tip-word {
+  margin: 6px 0 0;
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: #334155;
+}
+#tooltip .tip-pron {
+  margin: 2px 0 0;
+  font-size: 0.85rem;
+  font-weight: 800;
+  color: #7c6cf0;
+}
+#tooltip .tip-note {
+  margin: 8px 0 0;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: #fff7ed;
+  color: #9a3412;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.45;
+}
+#tooltip .tip-example {
+  margin: 6px 0 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: #64748b;
+}
+html.dark #tooltip .tip-label { color: #c4b5fd; }
+html.dark #tooltip .tip-close { background: #334155; color: #e9d5ff; }
+html.dark #tooltip .tip-meaning { color: #ddd6fe; }
+html.dark #tooltip .tip-word { color: #f8fafc; }
+html.dark #tooltip .tip-pron { color: #c4b5fd; }
+html.dark #tooltip .tip-note {
+  background: rgba(120, 53, 15, 0.35);
+  color: #ffedd5;
+}
+html.dark #tooltip .tip-example { color: #cbd5e1; }
+#tooltip .tip-loading {
+  color: #8b7cf7;
+  font-size: 1rem;
+}
+.word-btn.is-tip-open {
+  background: rgba(139, 124, 247, 0.2);
+}
+.interpret-chip {
+  position: fixed;
+  z-index: 60;
+  padding: 8px 14px;
+  border: 0;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #7c6cf0, #a78bfa);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 800;
+  box-shadow: 0 10px 24px rgba(124, 108, 240, 0.35);
+  cursor: pointer;
+}
+.interpret-chip:hover {
+  filter: brightness(1.05);
+}
+.interpret-chip.hidden {
+  display: none !important;
+}
 .toast-in { animation: toast .25s ease; }
 @keyframes toast { from { transform: translateY(10px); opacity: 0; } }
 .switch { width: 52px; height: 30px; border-radius: 999px; background: #e5e7eb; position: relative; transition: .2s; }

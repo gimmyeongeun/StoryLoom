@@ -28,7 +28,7 @@ app name/
 ├── script.js           # 앱 로직
 ├── config.js           # API 키 (로컬 전용, Git 제외)
 ├── config.example.js   # config.js 예시
-├── .env                # GEMINI_API_KEY (로컬 전용, Git 제외)
+├── .env                # GROQ_API_KEY (로컬 전용, Git 제외)
 ├── .env.example        # .env 예시
 ├── sync-env.ps1        # .env → config.js 반영 스크립트
 ├── images/             # 캐릭터·템플릿 이미지
@@ -48,15 +48,15 @@ git clone https://github.com/gimmyeongeun/StoryLoom.git
 cd StoryLoom
 ```
 
-### 2. Gemini API 키 설정
+### 2. Groq API 키 설정
 
 브라우저에서는 `.env`를 직접 읽지 못하므로, `.env` 값을 `config.js`로 넘깁니다.
 
 1. `.env.example`을 복사해 `.env`를 만듭니다.
-2. [Google AI Studio](https://aistudio.google.com/apikey)에서 발급한 키를 넣습니다.
+2. [Groq Console](https://console.groq.com/keys)에서 발급한 키를 넣습니다.
 
 ```env
-GEMINI_API_KEY=여기에_발급받은_키
+GROQ_API_KEY=여기에_발급받은_키
 ```
 
 3. `config.js` 만들기 (둘 중 하나)
@@ -73,7 +73,7 @@ GEMINI_API_KEY=여기에_발급받은_키
 copy config.example.js config.js
 ```
 
-그다음 `config.js`의 `GEMINI_API_KEY` 값을 실제 키로 바꿉니다.
+그다음 `config.js`의 `GROQ_API_KEY` 값을 실제 키로 바꿉니다.
 
 > `.env`와 `config.js`는 `.gitignore`에 포함되어 GitHub에 올라가지 않습니다.
 
@@ -102,7 +102,7 @@ copy config.example.js config.js
 |------|------|
 | 프론트엔드 | HTML5, CSS3, Vanilla JavaScript |
 | 스타일 | Tailwind CSS (CDN), `styles.css` |
-| AI | Google Gemini (`gemini-2.5-flash` → `gemini-2.0-flash` fallback) |
+| AI | Groq Llama 3 (`llama3-70b-8192` → `llama3-8b-8192` fallback) |
 | 저장 | `localStorage` (닉네임, 프로필 이미지·스타일 등) |
 
 ---
