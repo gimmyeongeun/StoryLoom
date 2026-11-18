@@ -37,10 +37,10 @@ const LEVELS = {
 };
 
 const TEMPLATES = {
-  pigs: { title: "아기돼지 삼형제", en: "Three Little Pigs", art: "pigs", cover: "linear-gradient(160deg,#ff9eb5,#ffd0a8)", emoji: "🐷", madlib: "Once upon a time, three little pigs built a [ house ] made of [ bricks ].", choices: ["a hidden trail", "a mysterious box", "a friendly bird"] },
-  alice: { title: "이상한 나라의 앨리스", en: "Alice in Wonderland", art: "alice", cover: "linear-gradient(160deg,#c4b5fd,#f9a8d4)", emoji: "🐇", madlib: "Alice followed the [ white rabbit ] down into a [ wonderland ].", choices: ["a talking flower", "a tiny door", "a tea party"] },
-  redhood: { title: "빨간 모자", en: "Little Red Riding Hood", art: "redhood", cover: "linear-gradient(160deg,#86efac,#fde68a)", emoji: "🧺", madlib: "Little Red Riding Hood walked through the [ forest ] with a [ basket ].", choices: ["fresh apples", "a kind wolf", "a map of stars"] },
-  goose: { title: "황금거위", en: "Golden Goose", art: "goose", cover: "linear-gradient(160deg,#fde68a,#fdba74)", emoji: "🪿", madlib: "A kind child shared bread and found a [ golden goose ].", choices: ["a golden feather", "a warm pie", "a new friend"] }
+  pigs: { title: "아기돼지 삼형제", en: "Three Little Pigs", art: "pigs", cover: "linear-gradient(160deg,#ff9eb5,#ffd0a8)", emoji: "🐷", madlib: "Once upon a time, three little pigs built a [ house ] made of [ bricks ].", madlibKo: "옛날 옛적에 아기돼지 삼형제가 ( 집 )을 ( 벽돌 )로 지었어요.", choices: ["a hidden trail", "a mysterious box", "a friendly bird"] },
+  alice: { title: "이상한 나라의 앨리스", en: "Alice in Wonderland", art: "alice", cover: "linear-gradient(160deg,#c4b5fd,#f9a8d4)", emoji: "🐇", madlib: "Alice followed the [ white rabbit ] down into a [ wonderland ].", madlibKo: "앨리스는 ( 하얀 토끼 )를 따라 ( 이상한 나라 )로 내려갔어요.", choices: ["a talking flower", "a tiny door", "a tea party"] },
+  redhood: { title: "빨간 모자", en: "Little Red Riding Hood", art: "redhood", cover: "linear-gradient(160deg,#86efac,#fde68a)", emoji: "🧺", madlib: "Little Red Riding Hood walked through the [ forest ] with a [ basket ].", madlibKo: "빨간 모자는 ( 바구니 )를 들고 ( 숲 )속을 걸어갔어요.", choices: ["fresh apples", "a kind wolf", "a map of stars"] },
+  goose: { title: "황금거위", en: "Golden Goose", art: "goose", cover: "linear-gradient(160deg,#fde68a,#fdba74)", emoji: "🪿", madlib: "A kind child shared bread and found a [ golden goose ].", madlibKo: "착한 아이는 빵을 나누어 주고 ( 황금거위 )를 발견했어요.", choices: ["a golden feather", "a warm pie", "a new friend"] }
 };
 
 const CLASSIC_STORIES = {
@@ -106,8 +106,12 @@ function seedClassicSceneOne(key) {
   currentTemplateImage = data.image;
   state.template = storyKey;
   state.templateImage = data.image;
+  // 템플릿/새 동화 시작: 서재 원본과 분리 (나중에 같은 제목이면 (2)(3)으로 새 책 저장)
+  state.activeBookId = null;
   state.story = {
     id: "classic-" + storyKey,
+    libraryId: null,
+    activeBookId: null,
     templateKey: storyKey,
     title: data.title,
     kr: tpl.title,
@@ -151,9 +155,11 @@ function resetStoryBook(key) {
   const inputEl = $("relayInput") || $("user-input");
   if (inputEl) inputEl.value = "";
   seedClassicSceneOne(storyKey);
+  resetRelayComposerToTemplate();
   $("reader").classList.remove("hidden");
   $("flipWrap").classList.remove("hidden");
   updateUI();
+  persistActiveDraft();
   $("flipWrap").scrollIntoView({ behavior: "smooth", block: "center" });
 }
 
@@ -240,28 +246,21 @@ const state = {
   showTranslation: true,
   page: 0,
   story: null,
+  activeBookId: null,
   parentUnlocked: false,
   pin: "",
   relayId: null,
   publishId: null,
-  vocab: [
-    { word: "brave", meaning: "용감한", pron: "/brayv/", example: "The pigs are brave.", from: "아기돼지 삼형제" },
-    { word: "kind", meaning: "친절한", pron: "/kynd/", example: "A kind child shares.", from: "황금거위" },
-    { word: "forest", meaning: "숲", pron: "/FOR-ist/", example: "Walk in the forest.", from: "빨간 모자" },
-    { word: "magic", meaning: "마법의", pron: "/MAJ-ik/", example: "A magic garden.", from: "앨리스" }
-  ],
-  week: [2, 4, 3, 6, 5, 8, 4],
-  books: [
-    { id: "space", title: "Pig in Space", kr: "우주 돼지", emoji: "🐷", cover: "linear-gradient(160deg,#818cf8,#67e8f9)", note: "읽는 중 · 50%", pages: null, published: false, art: "space" },
-    { id: "bakery", title: "The Dragon Bakery", kr: "드래곤 빵집", emoji: "🦕", cover: "linear-gradient(160deg,#6ee7b7,#fbcfe8)", note: "출판 완료", pages: null, published: true, art: "goose" },
-    { id: "cape", title: "Milo Flying Cape", kr: "마일로의 망토", emoji: "🦸", cover: "linear-gradient(160deg,#fb7185,#fdba74)", note: "출판 완료", pages: null, published: true, art: "alice" }
-  ],
-  community: [
-    { id: "c1", author: "하늘", title: "Rainbow Bakery", emoji: "🌈", text: "Milo opened a bakery on a cloud. The first customer was a shy star." },
-    { id: "c2", author: "준호", title: "Forest Lanterns", emoji: "🏮", text: "Red Riding Hood hung lanterns so no friend would get lost." },
-    { id: "c3", author: "서연", title: "Goose Mail", emoji: "✉️", text: "The golden goose delivered thank-you letters to the whole village." },
-    { id: "c4", author: "도윤", title: "Rabbit Clock", emoji: "⏰", text: "Alice and the rabbit stopped time to finish their tea party." }
-  ]
+  usedSuggestions: [],
+  lastSuggestions: [],
+  relayMadlib: null,
+  relayMadlibKo: null,
+  suggestionPoolCursor: 0,
+  vocab: [],
+  week: [0, 0, 0, 0, 0, 0, 0],
+  weekStart: "",
+  books: [],
+  community: []
 };
 
 const storyPages = [];
@@ -680,20 +679,72 @@ function wordTokenFromText(text, sentence, lookup, fullText) {
   return token;
 }
 
+function isPunctuationToken(part) {
+  return /^["""''‘’“”.,!?;:…]+$/.test(String(part || ""));
+}
+
 function sentenceToTokens(sentence, glosses, fullText) {
   const lookup = buildWordLookup(glosses);
   const full = String(sentence || "");
-  const parts = full.match(/[A-Za-z']+|[.,!?]/g) || [full];
-  return parts.map((part) => {
-    if (/^[.,!?]$/.test(part)) return part;
-    return wordTokenFromText(part, full, lookup, fullText || full);
+  // 단어와 따옴표·문장부호를 분리한 뒤, 부호는 앞/뒤 단어에 붙여 단독 줄바꿈을 막음
+  const parts = full.match(/[A-Za-z']+|["""''‘’“”.,!?;:…]+|[^\sA-Za-z"""''‘’“”.,!?;:…]+/g) || [full];
+  const tokens = [];
+  parts.forEach((part) => {
+    if (isPunctuationToken(part)) {
+      if (!tokens.length) {
+        tokens.push({ lead: part, text: "", meaning: "", pron: "", example: "", context: "", isPunctOnly: true });
+        return;
+      }
+      const prev = tokens[tokens.length - 1];
+      if (prev && typeof prev === "object") {
+        if (prev.isPunctOnly && !prev.text) {
+          prev.lead = (prev.lead || "") + part;
+        } else {
+          prev.trail = (prev.trail || "") + part;
+        }
+      } else {
+        tokens[tokens.length - 1] = String(prev) + part;
+      }
+      return;
+    }
+    if (/[^A-Za-z']/.test(part) && !/[A-Za-z]/.test(part)) {
+      if (tokens.length && tokens[tokens.length - 1] && typeof tokens[tokens.length - 1] === "object") {
+        tokens[tokens.length - 1].trail = (tokens[tokens.length - 1].trail || "") + part;
+      } else {
+        tokens.push(part);
+      }
+      return;
+    }
+    const token = wordTokenFromText(part, full, lookup, fullText || full);
+    token.lead = "";
+    token.trail = "";
+    // 앞에 남은 단독 따옴표(opening)가 있으면 이 단어에 결합
+    if (tokens.length) {
+      const prev = tokens[tokens.length - 1];
+      if (prev && typeof prev === "object" && prev.isPunctOnly && prev.lead && !prev.text) {
+        token.lead = prev.lead;
+        tokens.pop();
+      }
+    }
+    tokens.push(token);
   });
+  return tokens.filter((token) => !(token && token.isPunctOnly && !token.text && !token.trail));
 }
 
 function wordButtonHtml(part) {
   const token = typeof part === "string" ? wordTokenFromText(part, part) : part;
+  if (!token || (!token.text && (token.lead || token.trail))) {
+    return '<span class="word-punct">' + esc((token && (token.lead || "")) + (token && (token.trail || ""))) + "</span>";
+  }
   // button 대신 span으로 두어 문장 안 텍스트 선택이 깨지지 않게 함
-  return '<span role="button" tabindex="0" class="word-btn border-b-2 border-violet-300 font-extrabold text-violet-700 dark:border-violet-200 dark:text-white" data-action="word" data-word="' + esc(token.text) + '" data-meaning="' + esc(token.meaning) + '" data-pron="' + esc(token.pron) + '" data-example="' + esc(token.example) + '" data-context="' + esc(token.context || "") + '" data-sentence="' + esc(token.example || "") + '">' + esc(token.text) + "</span>";
+  // 따옴표·부호는 단어 옆에 붙이되(nbsp), 문장 전체 nowrap은 쓰지 않아 카드 폭 안에서 줄바꿈됨
+  return (
+    '<span class="word-cluster">' +
+      (token.lead ? '<span class="word-punct">' + esc(token.lead) + "</span>" : "") +
+      '<span role="button" tabindex="0" class="word-btn border-b-2 border-violet-300 font-extrabold text-violet-700 dark:border-violet-200 dark:text-white" data-action="word" data-word="' + esc(token.text) + '" data-meaning="' + esc(token.meaning) + '" data-pron="' + esc(token.pron) + '" data-example="' + esc(token.example) + '" data-context="' + esc(token.context || "") + '" data-sentence="' + esc(token.example || "") + '">' + esc(token.text) + "</span>" +
+      (token.trail ? '<span class="word-punct">\u00A0' + esc(token.trail).replace(/^\s+/, "") + "</span>" : "") +
+    "</span>"
+  );
 }
 
 function tokensToHtml(tokens, interactive) {
@@ -704,18 +755,19 @@ function tokensToHtml(tokens, interactive) {
   const sentence = plainLine(tokens);
   tokens.forEach((part) => {
     if (typeof part === "string") {
-      if (/^[.,!?]+$/.test(part)) {
-        html += esc(part);
+      if (isPunctuationToken(part)) {
+        // 단독 부호는 앞 클러스터에 붙일 수 없으면 nowrap으로 출력
+        html += '<span class="word-punct">' + esc(part) + "</span>";
         return;
       }
-      const bits = part.match(/[A-Za-z']+|[.,!?]+|\s+/g) || [part];
+      const bits = part.match(/[A-Za-z']+|["""''‘’“”.,!?;:…]+|\s+/g) || [part];
       bits.forEach((bit) => {
         if (/^\s+$/.test(bit)) {
           html += " ";
           return;
         }
-        if (/^[.,!?]+$/.test(bit)) {
-          html += esc(bit);
+        if (isPunctuationToken(bit)) {
+          html += '<span class="word-punct">' + esc(bit) + "</span>";
           return;
         }
         html += (html && !/[>\s]$/.test(html) ? " " : "") + wordButtonHtml(wordTokenFromText(bit, sentence, null, sentence));
@@ -727,11 +779,22 @@ function tokensToHtml(tokens, interactive) {
   return html;
 }
 
+function isValidEnglishSentence(text) {
+  const value = String(text || "").trim();
+  if (!value) return false;
+  // 따옴표·공백·부호만 남은 조각은 문장으로 보지 않음
+  if (!/[A-Za-z]/.test(value)) return false;
+  if (/^["""''‘’“”\s.,!?;:…\-–—]+$/.test(value)) return false;
+  return true;
+}
+
 function splitEnglishSentences(text) {
   const raw = String(text || "").trim();
   if (!raw) return [];
   const matches = raw.match(/[^.!?]+[.!?]+|[^.!?]+$/g);
-  return (matches || [raw]).map((s) => s.trim()).filter(Boolean);
+  return (matches || [raw])
+    .map((s) => s.trim())
+    .filter(isValidEnglishSentence);
 }
 
 function splitKoreanSentences(text) {
@@ -769,9 +832,18 @@ function renderInteractiveStoryHtml(page, interactive) {
   const enSentences = splitEnglishSentences(enText);
   const koSentences = splitKoreanSentences(koText);
   if (!enSentences.length) {
-    return tokensToHtml(page.en || sentenceToTokens(enText, glosses, enText), true);
+    if (!isValidEnglishSentence(enText)) {
+      return '<span class="text-slate-900 dark:text-white">' + esc(enText) + "</span>";
+    }
+    return (
+      '<span class="story-sentence mb-3 block leading-relaxed" data-action="sentence-body" data-en="' + esc(enText) + '" data-ko="' + esc(koText || "") + '">' +
+      tokensToHtml(page.en || sentenceToTokens(enText, glosses, enText), true) +
+      ' <button type="button" class="sentence-tip-btn ml-1 align-middle" data-action="sentence-tip" data-en="' + esc(enText) + '" data-ko="' + esc(koText || "") + '">문장 해석</button>' +
+      "</span>"
+    );
   }
   return enSentences.map((sentence, index) => {
+    if (!isValidEnglishSentence(sentence)) return "";
     const ko = koSentences[index] || koText || "이 문장의 전체 뜻을 확인해 보세요.";
     const tokens = sentenceToTokens(sentence, glosses, enText);
     return (
@@ -793,7 +865,11 @@ function lookupPhraseMeaning(text) {
 }
 
 function plainLine(tokens) {
-  return tokens.map((part) => (typeof part === "string" ? part : part.text)).join(" ").replace(/\s+([.!?])/g, "$1");
+  return (tokens || []).map((part) => {
+    if (typeof part === "string") return part;
+    if (!part) return "";
+    return String(part.lead || "") + String(part.text || "") + String(part.trail || "");
+  }).join(" ").replace(/\s+(["""''‘’“”.,!?])/g, "$1");
 }
 
 function clonePages(template, level) {
@@ -903,6 +979,75 @@ const SAFE_SUGGESTION_POOL = [
   "climb a tall tree"
 ];
 
+const THEME_SUGGESTION_POOLS = {
+  pigs: [
+    "a straw house", "a stick bridge", "a brick wall", "a sneaky wolf",
+    "a warm chimney", "a clever trap", "a muddy path", "a brave plan",
+    "a friendly neighbor", "a secret tunnel", "a loud huff", "a safe shelter"
+  ],
+  alice: [
+    "a talking flower", "a tiny door", "a tea party", "a pocket watch",
+    "a curious key", "a shrinking potion", "a smiling cat", "a garden maze",
+    "a painted rose", "a looking glass", "a mad hat", "a soft pillow cloud"
+  ],
+  redhood: [
+    "fresh apples", "a kind wolf", "a map of stars", "a forest path",
+    "a picnic basket", "a red cape", "grandmother's cottage", "a glowing lantern",
+    "a helpful woodcutter", "a berry bush", "a winding trail", "a warm quilt"
+  ],
+  goose: [
+    "a golden feather", "a warm pie", "a new friend", "a kind farmer",
+    "a shiny egg", "a village fair", "a gentle pond", "a magic whistle",
+    "a bread crumb", "a royal parade", "a soft nest", "a lucky coin"
+  ]
+};
+
+const THEME_RELAY_MADLIBS = {
+  pigs: "Then the pigs noticed a [ clue ] near the [ house ] and decided to [ explore ].",
+  alice: "After that, Alice found a [ wonder ] beside a [ door ] and chose to [ follow ].",
+  redhood: "Next, Little Red Riding Hood saw a [ surprise ] on the [ path ] and went to [ help ].",
+  goose: "Then the golden goose brought a [ gift ] to the [ friend ] and began to [ celebrate ]."
+};
+
+const THEME_RELAY_MADLIBS_KO = {
+  pigs: "그러자 돼지들은 ( 단서 )를 ( 집 ) 근처에서 발견하고 ( 탐험 )하기로 했어요.",
+  alice: "그 뒤 앨리스는 ( 문 ) 옆에서 ( 신비한 것 )을 발견하고 ( 따라가 )기로 했어요.",
+  redhood: "다음으로 빨간 모자는 ( 길 ) 위에서 ( 놀라운 일 )을 보고 ( 도우러 ) 갔어요.",
+  goose: "그러자 황금거위는 ( 친구 )에게 ( 선물 )을 전하고 ( 축하 )하기 시작했어요."
+};
+
+const RELAY_PROMPT_ADDENDUM = "\n\n[RELAY FILL-IN FOR THE NEXT TURN]\nAfter writing the scene, ALSO return these keys in the SAME JSON object:\n- relay_prompt: ONE English fill-in-the-blank sentence that continues RIGHT AFTER the ending of your english scene. Use exactly two blanks in the form [ phrase ]. Example: Following the silver watch's whisper, Alice stepped toward [ a hidden glade ] and noticed [ a glowing river ].\n- relay_prompt_ko: Natural Korean translation of relay_prompt in warm spoken style (~어요). Represent blanks as ( 한글 ). Example: 은색 시계의 속삭임을 따라, 앨리스는 ( 숨은 숲 공터 )로 걸어가 ( 빛나는 강 )을 발견했어요.\n- suggestions: exactly 3 short English phrases (2-4 words) that fit those blanks and continue the plot (no repeats from the scene).\nNever include the previous scene quoted verbatim inside relay_prompt.";
+
+function getThemeSuggestionPool() {
+  const key = TEMPLATES[state.template] ? state.template : "pigs";
+  return (THEME_SUGGESTION_POOLS[key] || SAFE_SUGGESTION_POOL).concat(SAFE_SUGGESTION_POOL);
+}
+
+function normalizeSuggestionKey(phrase) {
+  return String(phrase || "").toLowerCase().replace(/\s+/g, " ").trim();
+}
+
+function ensureUsedSuggestions() {
+  if (!Array.isArray(state.usedSuggestions)) state.usedSuggestions = [];
+  return state.usedSuggestions;
+}
+
+function markSuggestionUsed(phrase) {
+  const value = String(phrase || "").trim();
+  const key = normalizeSuggestionKey(value);
+  if (!key || key.length < 2) return;
+  const list = ensureUsedSuggestions();
+  if (!list.some((item) => normalizeSuggestionKey(item) === key)) {
+    list.push(value);
+  }
+}
+
+function isSuggestionAlreadyUsed(phrase) {
+  const key = normalizeSuggestionKey(phrase);
+  if (!key) return true;
+  return ensureUsedSuggestions().some((item) => normalizeSuggestionKey(item) === key);
+}
+
 function getFullStoryWordSet(extraText) {
   const text = (collectFullStoryEnglish().join(" ") + " " + String(extraText || "")).toLowerCase();
   return new Set(text.match(/[a-z]{3,}/g) || []);
@@ -922,7 +1067,31 @@ function isCompleteSuggestionPhrase(phrase) {
 function suggestionOverlapsStory(phrase, wordSet) {
   const stop = { the: 1, and: 1, for: 1, with: 1, from: 1, into: 1, open: 1, find: 1, a: 1, an: 1 };
   const tokens = String(phrase || "").toLowerCase().match(/[a-z]{3,}/g) || [];
-  return tokens.some((token) => !stop[token] && wordSet.has(token));
+  // 구 전체의 content 단어가 이미 이야기에 많이 겹치면 제외
+  const content = tokens.filter((token) => !stop[token]);
+  if (!content.length) return false;
+  const hits = content.filter((token) => wordSet.has(token)).length;
+  return hits >= Math.max(1, Math.ceil(content.length * 0.66));
+}
+
+function nextThemeFallbackSuggestions(count) {
+  const pool = getThemeSuggestionPool();
+  const picked = [];
+  let guard = 0;
+  while (picked.length < count && guard < pool.length * 2) {
+    const idx = (state.suggestionPoolCursor || 0) % pool.length;
+    state.suggestionPoolCursor = idx + 1;
+    const phrase = pool[idx];
+    guard += 1;
+    if (!phrase) continue;
+    if (isSuggestionAlreadyUsed(phrase)) continue;
+    if (picked.some((item) => normalizeSuggestionKey(item) === normalizeSuggestionKey(phrase))) continue;
+    picked.push(phrase);
+  }
+  while (picked.length < count) {
+    picked.push(["a magic surprise", "a gentle breeze", "a secret smile"][picked.length] || "a new adventure");
+  }
+  return picked;
 }
 
 function filterSuggestionsAgainstFullStory(suggestions, english, userInput) {
@@ -932,12 +1101,16 @@ function filterSuggestionsAgainstFullStory(suggestions, english, userInput) {
     const value = String(phrase || "").trim();
     if (!value) return;
     if (!isCompleteSuggestionPhrase(value)) return;
+    if (isSuggestionAlreadyUsed(value)) return;
     if (suggestionOverlapsStory(value, wordSet)) return;
-    if (out.some((item) => item.toLowerCase() === value.toLowerCase())) return;
+    if (out.some((item) => normalizeSuggestionKey(item) === normalizeSuggestionKey(value))) return;
     out.push(value);
   };
   extractSuggestionsList(suggestions).forEach(pushUnique);
-  SAFE_SUGGESTION_POOL.forEach(pushUnique);
+  getThemeSuggestionPool().forEach(pushUnique);
+  if (out.length < 3) {
+    nextThemeFallbackSuggestions(3 - out.length).forEach(pushUnique);
+  }
   while (out.length < 3) {
     out.push(["a hidden trail", "a mysterious box", "a friendly bird"][out.length] || "a magic surprise");
   }
@@ -949,14 +1122,165 @@ function inventSuggestionsFromScene(english, userInput) {
 }
 
 function normalizeSuggestions(raw, english, userInput) {
-  return filterSuggestionsAgainstFullStory(raw, english, userInput);
+  const list = filterSuggestionsAgainstFullStory(raw, english, userInput);
+  // API가 비었거나 전부 걸러진 경우 테마 풀에서 확실히 3개
+  if (!list.length) return nextThemeFallbackSuggestions(3);
+  return list;
+}
+
+function getCleanRelayMadlib() {
+  const key = TEMPLATES[state.template] ? state.template : "pigs";
+  // Scene 2+ 진행 중이면 테마별 빈칸 릴레이 문장, Scene 1만이면 템플릿 기본 madlib
+  if (storyPages.length > 1) {
+    return THEME_RELAY_MADLIBS[key] || THEME_RELAY_MADLIBS.pigs;
+  }
+  const tpl = TEMPLATES[key] || TEMPLATES.pigs;
+  return tpl.madlib;
+}
+
+function getCleanRelayMadlibKo() {
+  const key = TEMPLATES[state.template] ? state.template : "pigs";
+  if (storyPages.length > 1) {
+    return THEME_RELAY_MADLIBS_KO[key] || THEME_RELAY_MADLIBS_KO.pigs;
+  }
+  const tpl = TEMPLATES[key] || TEMPLATES.pigs;
+  return tpl.madlibKo || THEME_RELAY_MADLIBS_KO[key] || "";
+}
+
+function buildRelayMadlibFromScene(english) {
+  // API 실패 시: 직전 장면 키워드를 살짝 이어 받는 로컬 빈칸 문장 (긴 인용문 금지)
+  const tip = formatCleanEnglishText(english || "");
+  const key = TEMPLATES[state.template] ? state.template : "pigs";
+  if (!tip) return getCleanRelayMadlib();
+  const starters = {
+    pigs: "Following that moment, the pigs hurried toward",
+    alice: "Following that whisper, Alice stepped toward",
+    redhood: "Following that clue, Little Red Riding Hood walked toward",
+    goose: "Following that gift, the golden goose led everyone toward"
+  };
+  const start = starters[key] || "Following that moment, the friends moved toward";
+  return start + " [ a hidden path ] and noticed [ a soft glowing light ].";
+}
+
+function buildRelayMadlibKoFromScene(english, madlibEn) {
+  if (madlibEn && /\[/.test(madlibEn)) {
+    // 영어 빈칸 구조만 맞춘 간단한 한국어 폴백
+    const key = TEMPLATES[state.template] ? state.template : "pigs";
+    const startersKo = {
+      pigs: "그 순간을 따라, 돼지들은",
+      alice: "그 속삭임을 따라, 앨리스는",
+      redhood: "그 단서를 따라, 빨간 모자는",
+      goose: "그 선물을 따라, 황금거위는"
+    };
+    return (startersKo[key] || "그 순간을 따라, 친구들은") + " ( 숨겨진 길 ) 쪽으로 가서 ( 부드러운 빛 )을 발견했어요.";
+  }
+  return getCleanRelayMadlibKo();
+}
+
+function isLegacyJustNowMadlib(text) {
+  return /^\s*Just now:/i.test(String(text || "")) || /What happens next\?/i.test(String(text || ""));
+}
+
+function getDefaultTemplateChoices() {
+  const key = TEMPLATES[state.template] ? state.template : "pigs";
+  const tpl = TEMPLATES[key] || TEMPLATES.pigs;
+  return (tpl.choices || []).map((item) => normalizeSuggestionKey(item));
+}
+
+function isDefaultTemplateSuggestions(list) {
+  const incoming = (Array.isArray(list) ? list : [])
+    .map((item) => normalizeSuggestionKey(item))
+    .filter(Boolean)
+    .slice(0, 3);
+  if (!incoming.length) return true;
+  const defaults = getDefaultTemplateChoices();
+  if (!defaults.length) return false;
+  // 초기 템플릿 추천(예: a talking flower)과 같으면 stale로 간주
+  const overlap = incoming.filter((item) => defaults.indexOf(item) >= 0).length;
+  return overlap >= Math.min(2, incoming.length);
+}
+
+function shouldRefreshRelaySuggestions(list) {
+  if (!Array.isArray(list) || !list.length) return true;
+  if (storyPages.length <= 1) return false;
+  return isDefaultTemplateSuggestions(list);
+}
+
+function sanitizeRelayMadlibText(text) {
+  const value = String(text || "").trim();
+  if (!value || isLegacyJustNowMadlib(value)) return getCleanRelayMadlib();
+  return value;
+}
+
+function pairedRelayMadlibKoForEnglish(enText) {
+  const en = String(enText || "").trim();
+  if (!en) return getCleanRelayMadlibKo();
+  const tplKeys = Object.keys(TEMPLATES);
+  for (let i = 0; i < tplKeys.length; i++) {
+    const tpl = TEMPLATES[tplKeys[i]];
+    if (tpl && en === tpl.madlib && tpl.madlibKo) return tpl.madlibKo;
+  }
+  const themeKeys = Object.keys(THEME_RELAY_MADLIBS);
+  for (let i = 0; i < themeKeys.length; i++) {
+    const key = themeKeys[i];
+    if (en === THEME_RELAY_MADLIBS[key] && THEME_RELAY_MADLIBS_KO[key]) {
+      return THEME_RELAY_MADLIBS_KO[key];
+    }
+  }
+  return buildRelayMadlibKoFromScene("", en);
+}
+
+function isRelayPairLikelyMismatched(enText, koText) {
+  const en = String(enText || "").trim();
+  const ko = String(koText || "").trim();
+  if (!en || !ko) return true;
+  const expected = pairedRelayMadlibKoForEnglish(en);
+  const tplKeys = Object.keys(TEMPLATES);
+  for (let i = 0; i < tplKeys.length; i++) {
+    const tpl = TEMPLATES[tplKeys[i]];
+    if (tpl && en === tpl.madlib) {
+      return normalizeSuggestionKey(ko) !== normalizeSuggestionKey(expected);
+    }
+  }
+  const themeKeys = Object.keys(THEME_RELAY_MADLIBS);
+  for (let i = 0; i < themeKeys.length; i++) {
+    if (en === THEME_RELAY_MADLIBS[themeKeys[i]]) {
+      return normalizeSuggestionKey(ko) !== normalizeSuggestionKey(expected);
+    }
+  }
+  // 고정 문장이 아닌 API/로컬 문장: 영어는 After that인데 한글은 속삭임 등 다른 폴백이면 불일치
+  if (/^After that,/i.test(en) && /속삭임|Following that whisper/i.test(ko)) return true;
+  if (/^Following that/i.test(en) && /After that, Alice found/i.test(ko) === false && /그 뒤 앨리스는 \( 문 \)/.test(ko)) return true;
+  return false;
+}
+
+function setRelayMadlibPair(enText, koText) {
+  // 영어·한글을 항상 한 쌍으로만 갱신 (한쪽만 남기지 않음)
+  const en = sanitizeRelayMadlibText(enText);
+  let ko = String(koText || "").trim();
+  if (!ko || isRelayPairLikelyMismatched(en, ko)) {
+    ko = pairedRelayMadlibKoForEnglish(en);
+  }
+  state.relayMadlib = en;
+  state.relayMadlibKo = ko;
+  const el = $("madlib");
+  const koEl = $("madlibKo");
+  if (el) el.textContent = state.relayMadlib;
+  if (koEl) koEl.textContent = state.relayMadlibKo || "";
+}
+
+function setRelayMadlibText(text, koText) {
+  setRelayMadlibPair(text, koText);
 }
 
 function fillRelayInputWithChoice(choice) {
+  const value = String(choice || "");
+  markSuggestionUsed(value);
   const inputEl = $("relayInput") || document.getElementById("user-input") || $("user-input");
   if (!inputEl) return;
-  inputEl.value = String(choice || "");
+  inputEl.value = value;
   inputEl.focus();
+  persistRelayStateEverywhere();
 }
 
 function getSuggestionsContainer() {
@@ -994,12 +1318,104 @@ function renderChoiceButtons(suggestions, english, userInput) {
   console.log("[StoryLoom] 추천 단어 버튼 교체 완료:", list);
 }
 
+function persistRelayStateEverywhere() {
+  persistActiveDraft();
+  if (isCurrentStoryInLibrary()) {
+    syncActiveStoryToLibrary({ silent: true, createIfMissing: false });
+  }
+}
+
+function updateRelayComposerFromLatestScene(options) {
+  const opts = options || {};
+  const latest = storyPages.length ? storyPages[storyPages.length - 1] : null;
+  const english = opts.english || (latest && (latest.text_en || plainLine(latest.en || []))) || "";
+  const userInput = opts.userInput || "";
+  if (userInput) markSuggestionUsed(userInput);
+  const apiEn = opts.madlib && String(opts.madlib).trim() && !isLegacyJustNowMadlib(opts.madlib)
+    ? String(opts.madlib).trim()
+    : "";
+  const apiKo = opts.madlibKo && String(opts.madlibKo).trim()
+    ? String(opts.madlibKo).trim()
+    : "";
+  let madlib;
+  let madlibKo;
+  if (apiEn && apiKo) {
+    // API가 준 영어·한글을 한 쌍으로 동시 반영
+    madlib = sanitizeRelayMadlibText(apiEn);
+    madlibKo = apiKo;
+  } else if (apiEn) {
+    madlib = sanitizeRelayMadlibText(apiEn);
+    madlibKo = pairedRelayMadlibKoForEnglish(madlib);
+  } else if (opts.preferLocalContextual || storyPages.length > 1) {
+    madlib = buildRelayMadlibFromScene(english);
+    madlibKo = buildRelayMadlibKoFromScene(english, madlib);
+  } else {
+    madlib = getCleanRelayMadlib();
+    madlibKo = pairedRelayMadlibKoForEnglish(madlib);
+  }
+  if (isRelayPairLikelyMismatched(madlib, madlibKo)) {
+    madlibKo = pairedRelayMadlibKoForEnglish(madlib);
+  }
+  setRelayMadlibPair(madlib, madlibKo);
+  let rawSuggestions = opts.suggestions != null
+    ? opts.suggestions
+    : (state.lastSuggestions || []);
+  // 진행 중인데 기본 템플릿 추천이 남아 있으면 마지막 장면 기준으로 즉시 교체
+  if (opts.forceRefresh || shouldRefreshRelaySuggestions(rawSuggestions)) {
+    rawSuggestions = inventSuggestionsFromScene(english, userInput);
+  }
+  renderChoiceButtons(rawSuggestions, english, userInput);
+  persistRelayStateEverywhere();
+}
+
 function updateSuggestionButtonsFromApi(parsedData, english, userInput) {
-  const suggestions = parsedData && parsedData.suggestions != null
-    ? parsedData.suggestions
-    : (parsedData && Array.isArray(parsedData) ? parsedData : []);
+  const suggestions = parsedData && parsedData.relay_prompt
+    ? (parsedData._apiSuggestions || parsedData.suggestions)
+    : (parsedData && parsedData.suggestions != null
+      ? parsedData.suggestions
+      : (parsedData && parsedData._apiSuggestions != null
+        ? parsedData._apiSuggestions
+        : (parsedData && Array.isArray(parsedData) ? parsedData : [])));
   console.log("Groq Response Suggestions:", suggestions);
-  renderChoiceButtons(suggestions, english || (parsedData && parsedData.english) || "", userInput || "");
+  const relayEn = parsedData && (parsedData.relay_prompt || parsedData.relayPrompt || parsedData.madlib);
+  const relayKo = parsedData && (parsedData.relay_prompt_ko || parsedData.relayPromptKo || parsedData.madlib_ko || parsedData.madlibKo);
+  // 새 장면마다 영어·한글 추천 문장을 동시에 교체
+  updateRelayComposerFromLatestScene({
+    english: english || (parsedData && parsedData.english) || "",
+    madlib: relayEn || "",
+    madlibKo: relayKo || "",
+    suggestions: suggestions,
+    userInput: userInput || "",
+    preferLocalContextual: !(relayEn && relayKo),
+    forceRefresh: !suggestions || !extractSuggestionsList(suggestions).length
+  });
+}
+
+function resetRelayComposerToTemplate() {
+  const selectedKey = TEMPLATES[state.template] ? state.template : null;
+  const tpl = selectedKey ? TEMPLATES[selectedKey] : TEMPLATES.pigs;
+  state.usedSuggestions = [];
+  state.suggestionPoolCursor = 0;
+  state.lastSuggestions = (tpl.choices || []).slice();
+  setRelayMadlibPair(tpl.madlib, tpl.madlibKo || getCleanRelayMadlibKo());
+  renderChoiceButtons(tpl.choices || [], "", "");
+  persistActiveDraft();
+}
+
+function refreshRelayComposerAfterRestore() {
+  const latest = storyPages.length ? storyPages[storyPages.length - 1] : null;
+  const latestEn = latest ? (latest.text_en || plainLine(latest.en || [])) : "";
+  if (storyPages.length <= 1) {
+    resetRelayComposerToTemplate();
+    return;
+  }
+  state.relayMadlib = getCleanRelayMadlib();
+  updateRelayComposerFromLatestScene({
+    english: latestEn,
+    madlib: state.relayMadlib,
+    suggestions: state.lastSuggestions,
+    forceRefresh: shouldRefreshRelaySuggestions(state.lastSuggestions)
+  });
 }
 
 function renderComposer() {
@@ -1010,11 +1426,86 @@ function renderComposer() {
     state.templateImage = classic.image;
     currentTemplateImage = state.templateImage;
   }
-  $("madlib").textContent = tpl.madlib;
-  renderChoiceButtons(tpl.choices);
+  if (storyPages.length > 1) {
+    const latest = storyPages[storyPages.length - 1];
+    const latestEn = latest ? (latest.text_en || plainLine(latest.en || [])) : "";
+    const stale = !state.relayMadlib || isLegacyJustNowMadlib(state.relayMadlib)
+      || isRelayPairLikelyMismatched(state.relayMadlib, state.relayMadlibKo);
+    if (stale) {
+      state.relayMadlib = buildRelayMadlibFromScene(latestEn);
+      state.relayMadlibKo = buildRelayMadlibKoFromScene(latestEn, state.relayMadlib);
+    }
+    updateRelayComposerFromLatestScene({
+      english: latestEn,
+      madlib: state.relayMadlib,
+      madlibKo: state.relayMadlibKo,
+      suggestions: state.lastSuggestions,
+      forceRefresh: shouldRefreshRelaySuggestions(state.lastSuggestions),
+      preferLocalContextual: stale
+    });
+  } else {
+    setRelayMadlibPair(tpl.madlib, tpl.madlibKo || getCleanRelayMadlibKo());
+    renderChoiceButtons(tpl.choices || [], "", "");
+  }
+  syncTemplateCardHighlight(selectedKey);
+}
+
+function syncTemplateCardHighlight(selectedKey) {
+  const key = selectedKey != null
+    ? selectedKey
+    : (TEMPLATES[state.template] || CLASSIC_STORIES[state.template] ? state.template : null);
   document.querySelectorAll(".tpl-card").forEach((card) => {
-    card.classList.toggle("tpl-on", !!selectedKey && card.dataset.tpl === selectedKey);
+    card.classList.toggle("tpl-on", !!key && card.dataset.tpl === key);
   });
+}
+
+function stripBookTitleCopyNumber(title) {
+  return String(title || "").replace(/\s*\(\d+\)\s*$/, "").trim();
+}
+
+function resolveTemplateKeyFromBook(book) {
+  if (!book) return null;
+  const direct = book.templateKey || book.art;
+  if (direct && (TEMPLATES[direct] || CLASSIC_STORIES[direct])) return direct;
+  const titleKey = normalizeBookTitleKey(stripBookTitleCopyNumber(book.title));
+  const krKey = normalizeBookTitleKey(stripBookTitleCopyNumber(book.kr));
+  const keys = Object.keys(TEMPLATES);
+  for (let i = 0; i < keys.length; i++) {
+    const key = keys[i];
+    const tpl = TEMPLATES[key];
+    const classic = CLASSIC_STORIES[key];
+    const candidates = [
+      tpl && tpl.en,
+      tpl && tpl.title,
+      classic && classic.title
+    ].filter(Boolean).map((text) => normalizeBookTitleKey(stripBookTitleCopyNumber(text)));
+    if (titleKey && candidates.indexOf(titleKey) >= 0) return key;
+    if (krKey && candidates.indexOf(krKey) >= 0) return key;
+  }
+  return null;
+}
+
+function allocateUniqueLibraryTitles(baseTitle, baseKr) {
+  const books = Array.isArray(state.books) && state.books.length
+    ? state.books
+    : loadBooksFromStorage();
+  const rootTitle = stripBookTitleCopyNumber(baseTitle) || String(baseTitle || "My Story").trim() || "My Story";
+  const rootKr = stripBookTitleCopyNumber(baseKr) || String(baseKr || "").trim();
+  const used = {};
+  (books || []).forEach((book) => {
+    if (!book || book.id === FRIENDS_OMNIBUS_ID) return;
+    const key = normalizeBookTitleKey(book.title);
+    if (key) used[key] = true;
+  });
+  if (!used[normalizeBookTitleKey(rootTitle)]) {
+    return { title: rootTitle, kr: rootKr };
+  }
+  let n = 2;
+  while (used[normalizeBookTitleKey(rootTitle + " (" + n + ")")]) n += 1;
+  return {
+    title: rootTitle + " (" + n + ")",
+    kr: rootKr ? (rootKr + " (" + n + ")") : rootKr
+  };
 }
 
 const tipState = { open: false, key: "", mode: "" };
@@ -1252,6 +1743,8 @@ async function showTooltip(btn, forceAi) {
   fillTooltipContent(word, meaning, pron, sentence, contextNote, "word", false);
   tipState.key = key;
   placeTooltipNear(btn.getBoundingClientRect());
+  // 뜻/문맥을 실제로 열어 본 경우 학습 포인트 +2 (같은 단어는 하루 1회)
+  if (!isWeakMeaning(meaning)) recordWordViewScore(word);
 }
 
 function showSentenceTooltip(btn) {
@@ -1359,12 +1852,34 @@ async function runInterpretSelection() {
   placeTooltipNear(rect);
 }
 
+function formatCleanEnglishText(text) {
+  return String(text || "")
+    .replace(/\s+/g, " ")
+    .replace(/\s+([.,!?;:…"""''‘’“”])/g, "$1")
+    .replace(/([("""''‘’“”])\s+/g, "$1")
+    .trim();
+}
+
+function renderFlipBookPageHtml(page) {
+  const enRaw = page.text_en || plainLine(page.en || []);
+  const koRaw = page.text_ko || page.kr || "";
+  const en = formatCleanEnglishText(enRaw);
+  const ko = String(koRaw || "").replace(/\s+/g, " ").trim();
+  return (
+    '<div class="flip-book-body">' +
+      '<p class="flip-book-en">' + esc(en || "(이 장면의 영어 문장이 아직 없어요)") + "</p>" +
+      (ko ? '<p class="flip-book-ko">' + esc(ko) + "</p>" : '<p class="flip-book-ko is-empty">한국어 해석을 준비 중이에요.</p>') +
+    "</div>"
+  );
+}
+
 function updateUI() {
   state.storyPages = storyPages;
   state.currentPage = currentPage;
   state.page = currentPage;
   const total = storyPages.length;
   const page = total ? storyPages[currentPage] : null;
+  if (total) persistActiveDraft();
   $("pageLabel").textContent = (total ? currentPage + 1 : 1) + " / " + (total || 1);
   const prev = $("prevPage");
   const next = $("nextPage");
@@ -1376,16 +1891,20 @@ function updateUI() {
   const show = state.showTranslation;
   const interactive = !show;
   const title = state.story ? state.story.title : "";
-  const storyHtml = renderInteractiveStoryHtml(page, interactive);
+  // 스마트 이중 해석: 기존 인터랙티브(단어 클릭 + 토글) 유지
+  const dualHtml = renderInteractiveStoryHtml(page, interactive);
   $("reader").classList.remove("hidden");
   $("flipWrap").classList.remove("hidden");
-  $("plainStory").innerHTML = '<div class="rounded-2xl bg-violet-50/70 p-4 dark:bg-slate-900"><p class="text-xs font-extrabold text-violet-400 dark:text-gray-200">Scene ' + page.scene + '</p><div class="mt-1 text-lg font-extrabold leading-relaxed">' + storyHtml + '</div><p class="mt-2 text-sm font-bold text-slate-600 dark:text-gray-200 ' + (show ? "" : "hidden") + '">' + esc(page.text_ko) + "</p></div>";
+  $("plainStory").innerHTML = '<div class="rounded-2xl bg-violet-50/70 p-4 dark:bg-slate-900"><p class="text-xs font-extrabold text-violet-400 dark:text-gray-200">Scene ' + page.scene + '</p><div class="mt-1 text-lg font-extrabold leading-relaxed">' + dualHtml + '</div><p class="mt-2 text-sm font-bold text-slate-600 dark:text-gray-200 ' + (show ? "" : "hidden") + '">' + esc(page.text_ko || page.kr || "") + "</p></div>";
   $("switchUi").classList.toggle("on", show);
   $("transToggle").setAttribute("aria-pressed", String(show));
   const picture = $("storybook-image");
   picture.src = page.image || currentTemplateImage || "images/three_pigs.png";
   picture.alt = title || "동화 삽화";
-  $("flipPage").innerHTML = '<p class="text-xs font-extrabold text-amber-700 dark:text-white">' + esc(title) + ' · Scene ' + page.scene + '</p><div class="mt-4 text-xl font-extrabold leading-relaxed text-slate-900 dark:text-white">' + storyHtml + '</div><p class="mt-4 text-sm font-bold text-slate-600 dark:text-gray-200 ' + (show ? "" : "hidden") + '">' + esc(page.text_ko) + "</p>";
+  // 인터랙티브 동화책: 문장 해석 버튼 없이 영어 + 한국어 항상 표시
+  $("flipPage").innerHTML =
+    '<p class="text-xs font-extrabold text-amber-700 dark:text-white">' + esc(title) + " · Scene " + page.scene + "</p>" +
+    '<div class="mt-4">' + renderFlipBookPageHtml(page) + "</div>";
 }
 
 function renderPlain() { updateUI(); }
@@ -1412,6 +1931,7 @@ function appendStoryPage(page) {
       level: state.level
     };
   }
+  linkActiveStoryToExistingLibraryBook();
   state.story.pages = storyPages;
   state.story.image = selected.image;
   const textEn = page.text_en || plainLine(page.en || []);
@@ -1431,34 +1951,1440 @@ function appendStoryPage(page) {
   $("flipWrap").classList.remove("hidden");
   updateUI();
   $("flipWrap").scrollIntoView({ behavior: "smooth", block: "center" });
+  // 이어쓰기: 기존 책 갱신 / 새 동화: 고유 제목으로 새 책 생성
+  if (isCurrentStoryInLibrary()) {
+    syncActiveStoryToLibrary({ silent: true, createIfMissing: false });
+  } else if (storyPages.length > 1) {
+    syncActiveStoryToLibrary({ silent: true, createIfMissing: true });
+    updateUI();
+  }
+  persistActiveDraft();
+}
+
+const VOCAB_STORAGE_KEY = "storyloom-vocab";
+const DEFAULT_VOCAB = [
+  { word: "brave", meaning: "용감한", pron: "/brayv/", example: "The pigs are brave.", from: "아기돼지 삼형제" },
+  { word: "kind", meaning: "친절한", pron: "/kynd/", example: "A kind child shares.", from: "황금거위" },
+  { word: "forest", meaning: "숲", pron: "/FOR-ist/", example: "Walk in the forest.", from: "빨간 모자" },
+  { word: "magic", meaning: "마법의", pron: "/MAJ-ik/", example: "A magic garden.", from: "앨리스" }
+];
+
+function normalizeVocabItem(item) {
+  if (!item || !item.word) return null;
+  return {
+    word: String(item.word),
+    meaning: String(item.meaning || ""),
+    pron: String(item.pron || ""),
+    example: String(item.example || ""),
+    from: String(item.from || "동화")
+  };
+}
+
+function loadVocabFromStorage() {
+  try {
+    const raw = localStorage.getItem(VOCAB_STORAGE_KEY);
+    if (raw == null) return DEFAULT_VOCAB.map((item) => normalizeVocabItem(item));
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return DEFAULT_VOCAB.map((item) => normalizeVocabItem(item));
+    return parsed.map(normalizeVocabItem).filter(Boolean);
+  } catch (err) {
+    return DEFAULT_VOCAB.map((item) => normalizeVocabItem(item));
+  }
+}
+
+function persistVocab() {
+  try {
+    localStorage.setItem(VOCAB_STORAGE_KEY, JSON.stringify(state.vocab || []));
+  } catch (err) { /* file:// 등에서 저장이 막힐 수 있음 */ }
 }
 
 function renderVocab() {
   const grid = $("vocabGrid");
   if (!state.vocab.length) {
-    grid.innerHTML = '<p class="col-span-full rounded-2xl bg-white p-6 text-sm font-bold text-slate-500 shadow-soft dark:bg-slate-800 dark:text-gray-200">아직 저장한 단어가 없어요. 동화의 밑줄 단어를 눌러 저장해 보세요.</p>';
+    grid.innerHTML = '<p class="col-span-full rounded-2xl bg-white p-6 text-sm font-bold text-slate-500 shadow-soft dark:bg-slate-800 dark:text-gray-200">아직 저장한 단어가 없어요! 동화를 읽으며 밑줄 단어를 눌러 저장해 보세요 ✨</p>';
     return;
   }
-  grid.innerHTML = state.vocab.map((card) => '<article class="flash rounded-3xl border border-violet-100 bg-white p-4 shadow-soft dark:border-slate-600 dark:bg-slate-800"><div class="flex items-start justify-between gap-2"><h3 class="text-xl font-black text-violet-700 dark:text-white">' + esc(card.word) + '</h3><button type="button" class="grid h-10 w-10 place-items-center rounded-full bg-violet-50 text-lg dark:bg-slate-700" data-action="speak" data-speak="' + esc(card.word) + '" aria-label="' + esc(card.word) + ' 발음 듣기">🔊</button></div><p class="mt-2 text-sm font-extrabold text-slate-500 dark:text-gray-200">' + esc(card.pron) + '</p><p class="text-base font-black text-slate-800 dark:text-white">' + esc(card.meaning) + '</p><p class="mt-2 text-sm font-bold text-slate-600 dark:text-gray-200">"' + esc(card.example) + '"</p><p class="mt-2 text-xs font-extrabold text-pink-500 dark:text-gray-200">from ' + esc(card.from) + "</p></article>").join("");
+  grid.innerHTML = state.vocab.map((card) => (
+    '<article class="flash vocab-card relative rounded-3xl border border-violet-100 bg-white p-4 shadow-soft dark:border-slate-600 dark:bg-slate-800" data-vocab-word="' + esc(card.word) + '">' +
+      '<div class="flex items-start justify-between gap-2">' +
+        '<h3 class="text-xl font-black text-violet-700 dark:text-white">' + esc(card.word) + "</h3>" +
+        '<button type="button" class="grid h-10 w-10 place-items-center rounded-full bg-violet-50 text-lg dark:bg-slate-700" data-action="speak" data-speak="' + esc(card.word) + '" aria-label="' + esc(card.word) + ' 발음 듣기">🔊</button>' +
+      "</div>" +
+      '<p class="mt-2 text-sm font-extrabold text-slate-500 dark:text-gray-200">' + esc(card.pron) + "</p>" +
+      '<p class="text-base font-black text-slate-800 dark:text-white">' + esc(card.meaning) + "</p>" +
+      '<p class="mt-2 text-sm font-bold text-slate-600 dark:text-gray-200">"' + esc(card.example) + '"</p>' +
+      '<p class="mt-2 text-xs font-extrabold text-pink-500 dark:text-gray-200">from ' + esc(card.from) + "</p>" +
+      '<button type="button" class="vocab-complete-btn" data-action="complete-vocab" data-word="' + esc(card.word) + '" aria-label="' + esc(card.word) + ' 학습 완료">학습 완료 ✨</button>' +
+    "</article>"
+  )).join("");
+}
+
+function removeVocabWord(word, cardEl) {
+  const key = String(word || "").toLowerCase();
+  if (!key) return;
+  const finish = () => {
+    state.vocab = state.vocab.filter((item) => item.word.toLowerCase() !== key);
+    persistVocab();
+    renderVocab();
+    renderParents();
+    toast("“" + word + "” 학습 완료! 단어장에서 빼 두었어요.");
+  };
+  if (cardEl) {
+    cardEl.classList.remove("flash-removing");
+    cardEl.classList.add("flash-bounce-out");
+    cardEl.style.pointerEvents = "none";
+    setTimeout(finish, 420);
+  } else {
+    finish();
+  }
+}
+
+function isFriendsOmnibusBook(book) {
+  return !!(book && (book.id === FRIENDS_OMNIBUS_ID || book.coverStyle === "friends-quilt"));
+}
+
+function bookStatusLabel(book) {
+  if (isFriendsOmnibusBook(book)) return "친구들의 선물 🎁";
+  return book && book.published ? "출판 완료" : "작성 중";
+}
+
+function bookStatusClass(book) {
+  if (isFriendsOmnibusBook(book)) return "book-status is-gift";
+  return book && book.published ? "book-status is-published" : "book-status is-draft";
+}
+
+const FRIENDS_OMNIBUS_ID = "friends-omnibus";
+const BOOKS_STORAGE_KEY = "storyloom-books-v2";
+const FRIEND_COVER_COLORS = {
+  barnaby: "#f3e8ff", // purple-100 (바나비 프로필 테두리)
+  milo: "#ffe4e1", // coral-100 (마일로)
+  dragon: "#d1fae5", // mint-100 (다이노)
+  foxy: "#fef3c7" // amber-100 (퐁이)
+};
+
+function friendsQuiltCoverHtml(sizeClass) {
+  return (
+    '<div class="friends-quilt ' + (sizeClass || "") + '" aria-hidden="true">' +
+      '<div class="friends-quilt-grid">' +
+        '<div class="friends-quilt-cell" style="background:' + FRIEND_COVER_COLORS.barnaby + '"><span>🐰</span></div>' +
+        '<div class="friends-quilt-cell" style="background:' + FRIEND_COVER_COLORS.milo + '"><span>🐱</span></div>' +
+        '<div class="friends-quilt-cell" style="background:' + FRIEND_COVER_COLORS.dragon + '"><span>🦕</span></div>' +
+        '<div class="friends-quilt-cell" style="background:' + FRIEND_COVER_COLORS.foxy + '"><span>🦊</span></div>' +
+      "</div>" +
+      '<div class="friends-quilt-caption"><span class="friends-quilt-caption-text">Story Friends Omnibus</span></div>' +
+    "</div>"
+  );
+}
+
+function makeOmnibusPages() {
+  const episodes = [
+    {
+      en: "Barnaby the soft rabbit found a glowing crown and shared a warm hello with every friend.",
+      ko: "폭신한 토끼 바나비가 반짝이는 왕관을 발견하고, 친구들마다 따뜻한 인사를 나눴어요."
+    },
+    {
+      en: "Milo put on his coral cape and bravely helped a shy star cross a tiny rainbow bridge.",
+      ko: "마일로는 코랄 망토를 두르고, 수줍은 별이 작은 무지개 다리를 건너도록 용감하게 도와주었어요."
+    },
+    {
+      en: "Dino the pastel mint dinosaur baked sweet strawberry milk cookies for a picnic under soft clouds.",
+      ko: "파스텔 민트 공룡 다이노는 부드러운 구름 아래 소풍을 위해 달콤한 딸기 우유 쿠키를 구웠어요."
+    },
+    {
+      en: "Foxy tipped his magic hat, whispered a kind spell, and the secret story sparkled for everyone.",
+      ko: "퐁이가 마법 모자를 고쳐 쓰고 다정한 주문을 속삭이자, 비밀 이야기가 모두를 위해 반짝였어요."
+    }
+  ];
+  return episodes.map((ep, index) => {
+    const textEn = ep.en;
+    const textKo = ep.ko;
+    return {
+      scene: index + 1,
+      text_en: textEn,
+      text_ko: textKo,
+      en: sentenceToTokens(textEn, []),
+      kr: textKo,
+      image: index === 0 ? "images/barnaby_3d.png"
+        : (index === 1 ? "images/milo_3d.png"
+          : (index === 2 ? "images/dino_3d.png" : "images/pong_3d.png"))
+    };
+  });
+}
+
+function makeOmnibusBook() {
+  return {
+    id: FRIENDS_OMNIBUS_ID,
+    title: "Story Friends Omnibus",
+    kr: "동화 친구들의 비밀 이야기",
+    emoji: "✨",
+    cover: "friends-quilt",
+    coverStyle: "friends-quilt",
+    note: "친구들의 선물 🎁",
+    pages: makeOmnibusPages(),
+    published: false,
+    art: "friends",
+    isStarter: true
+  };
+}
+
+// 예전 서재 더미(초기 세팅용)만 제거. 사용자가 '서재에 넣기'로 만든 책은 제목과 무관하게 유지.
+function isOneTimeLibraryDummy(book) {
+  if (!book || !book.id) return true;
+  if (book.userCreated) return false;
+  if (book.id === FRIENDS_OMNIBUS_ID) return false;
+  // 자유 창작/AI로 생긴 id는 항상 유지
+  if (/^(user-|made-|gemini-)/.test(String(book.id))) return false;
+  if (book.id === "space" || book.id === "bakery" || book.id === "cape") return true;
+  // 예전 자동 시드 classic-* (userCreated 없음)만 제거
+  if (/^classic-/.test(String(book.id))) return true;
+  if (book.isStarter) return true;
+  return false;
+}
+
+function cloneStoryPagesForLibrary(pages) {
+  const source = Array.isArray(pages) ? pages : [];
+  return source.map((page, index) => {
+    const textEn = page && (page.text_en || plainLine(page.en || [])) || "";
+    const textKo = page && (page.text_ko || page.kr) || "";
+    const enTokens = Array.isArray(page && page.en)
+      ? page.en.map((part) => (
+        typeof part === "string"
+          ? part
+          : {
+            text: part.text,
+            meaning: part.meaning,
+            pron: part.pron,
+            example: part.example,
+            context: part.context || ""
+          }
+      ))
+      : sentenceToTokens(textEn, []);
+    return {
+      scene: (page && page.scene) || (index + 1),
+      text_en: textEn,
+      text_ko: textKo,
+      image: (page && page.image) || "",
+      en: enTokens,
+      kr: textKo,
+      isOpening: !!(page && page.isOpening)
+    };
+  });
+}
+
+const ACTIVE_DRAFT_KEY = "storyloom_active_draft";
+
+function serializeActiveDraft() {
+  if (!storyPages.length) return null;
+  const story = state.story || {};
+  return {
+    version: 2,
+    savedAt: Date.now(),
+    template: state.template || story.templateKey || null,
+    templateImage: state.templateImage || currentTemplateImage || "",
+    character: state.character || null,
+    level: state.level || "beginner",
+    activeBookId: state.activeBookId || story.libraryId || story.activeBookId || null,
+    currentPage: currentPage,
+    showTranslation: !!state.showTranslation,
+    relayMadlib: state.relayMadlib || "",
+    relayMadlibKo: state.relayMadlibKo || "",
+    lastSuggestions: Array.isArray(state.lastSuggestions) ? state.lastSuggestions.slice(0, 3) : [],
+    usedSuggestions: Array.isArray(state.usedSuggestions) ? state.usedSuggestions.slice() : [],
+    suggestionPoolCursor: Number(state.suggestionPoolCursor) || 0,
+    story: {
+      id: story.id || null,
+      libraryId: story.libraryId || state.activeBookId || null,
+      title: story.title || "",
+      kr: story.kr || "",
+      emoji: story.emoji || "",
+      cover: story.cover || "",
+      coverImage: story.coverImage || story.image || "",
+      art: story.art || null,
+      image: story.image || "",
+      templateKey: story.templateKey || state.template || null,
+      userCreated: !!story.userCreated
+    },
+    scenes: cloneStoryPagesForLibrary(storyPages)
+  };
+}
+
+function persistActiveDraft() {
+  try {
+    const draft = serializeActiveDraft();
+    if (!draft) return false;
+    localStorage.setItem(ACTIVE_DRAFT_KEY, JSON.stringify(draft));
+    return true;
+  } catch (err) {
+    console.warn("[StoryLoom] 자유 창작 draft 저장 실패:", err && err.message);
+    return false;
+  }
+}
+
+function clearActiveDraft() {
+  try { localStorage.removeItem(ACTIVE_DRAFT_KEY); } catch (err) { /* ignore */ }
+}
+
+function applyPagesToWorkspace(pages, options) {
+  const opts = options || {};
+  const nextPages = cloneStoryPagesForLibrary(pages);
+  if (!nextPages.length) return false;
+  storyPages.length = 0;
+  nextPages.forEach((page) => storyPages.push(page));
+  const wantedPage = Number(opts.currentPage);
+  currentPage = Number.isFinite(wantedPage)
+    ? Math.max(0, Math.min(nextPages.length - 1, wantedPage))
+    : (nextPages.length - 1);
+  state.storyPages = storyPages;
+  state.currentPage = currentPage;
+  state.page = currentPage;
+  return true;
+}
+
+function restoreActiveDraft() {
+  try {
+    const raw = localStorage.getItem(ACTIVE_DRAFT_KEY);
+    if (!raw) return false;
+    const draft = JSON.parse(raw);
+    if (!draft || !Array.isArray(draft.scenes) || !draft.scenes.length) return false;
+    if (!applyPagesToWorkspace(draft.scenes, { currentPage: draft.currentPage })) return false;
+
+    state.template = draft.template || (draft.story && draft.story.templateKey) || state.template;
+    state.templateImage = draft.templateImage || state.templateImage || currentTemplateImage;
+    currentTemplateImage = state.templateImage;
+    if (draft.character && CHARACTERS[draft.character]) state.character = draft.character;
+    if (draft.level && LEVELS[draft.level]) state.level = draft.level;
+    if (typeof draft.showTranslation === "boolean") state.showTranslation = draft.showTranslation;
+
+    state.usedSuggestions = Array.isArray(draft.usedSuggestions) ? draft.usedSuggestions.slice() : [];
+    state.suggestionPoolCursor = Number(draft.suggestionPoolCursor) || 0;
+    state.lastSuggestions = Array.isArray(draft.lastSuggestions) ? draft.lastSuggestions.slice(0, 3) : [];
+    if (storyPages.length > 1) {
+      const latest = storyPages[storyPages.length - 1];
+      const latestEn = latest.text_en || plainLine(latest.en || []);
+      const savedEn = sanitizeRelayMadlibText(draft.relayMadlib || "");
+      const savedKo = String(draft.relayMadlibKo || "").trim();
+      const staleMadlib = !draft.relayMadlib || isLegacyJustNowMadlib(draft.relayMadlib)
+        || isRelayPairLikelyMismatched(savedEn, savedKo);
+      if (staleMadlib) {
+        state.relayMadlib = buildRelayMadlibFromScene(latestEn);
+        state.relayMadlibKo = buildRelayMadlibKoFromScene(latestEn, state.relayMadlib);
+      } else {
+        state.relayMadlib = savedEn;
+        state.relayMadlibKo = savedKo;
+      }
+      if (shouldRefreshRelaySuggestions(state.lastSuggestions)) {
+        state.lastSuggestions = inventSuggestionsFromScene(latestEn, "");
+      }
+    } else {
+      const tpl = TEMPLATES[state.template] || TEMPLATES.pigs;
+      state.relayMadlib = sanitizeRelayMadlibText(draft.relayMadlib || tpl.madlib || "");
+      state.relayMadlibKo = pairedRelayMadlibKoForEnglish(state.relayMadlib)
+        || String(draft.relayMadlibKo || tpl.madlibKo || getCleanRelayMadlibKo());
+    }
+
+    const activeId = draft.activeBookId || (draft.story && draft.story.libraryId) || null;
+    state.activeBookId = activeId;
+    state.story = {
+      id: (draft.story && draft.story.id) || activeId || ("classic-" + (state.template || "pigs")),
+      libraryId: activeId || (draft.story && draft.story.libraryId) || null,
+      activeBookId: activeId,
+      title: (draft.story && draft.story.title) || "",
+      kr: (draft.story && draft.story.kr) || "",
+      emoji: (draft.story && draft.story.emoji) || "",
+      cover: (draft.story && draft.story.cover) || "",
+      coverImage: (draft.story && draft.story.coverImage) || "",
+      art: (draft.story && draft.story.art) || null,
+      image: (draft.story && draft.story.image) || state.templateImage || "",
+      templateKey: (draft.story && draft.story.templateKey) || state.template || null,
+      userCreated: !!(draft.story && draft.story.userCreated) || !!activeId,
+      pages: storyPages,
+      published: false,
+      level: state.level
+    };
+    if (activeId) bindActiveBookId(activeId);
+    // 명시적 bookId가 있을 때만 이어쓰기 연결 (제목만 같다고 원본에 붙이지 않음)
+    linkActiveStoryToExistingLibraryBook();
+
+    $("reader").classList.remove("hidden");
+    $("flipWrap").classList.remove("hidden");
+    return true;
+  } catch (err) {
+    console.warn("[StoryLoom] 자유 창작 draft 복원 실패:", err && err.message);
+    return false;
+  }
+}
+
+function loadBookIntoCreateWorkspace(bookId) {
+  const book = ensurePages(findBook(bookId));
+  if (!book || isOmnibusReaderBook(book)) {
+    toast("이어서 쓸 수 있는 동화가 아니에요.");
+    return false;
+  }
+  const sourcePages = Array.isArray(book.pages) && book.pages.length
+    ? book.pages
+    : (Array.isArray(book.scenes) ? book.scenes : []);
+  if (!applyPagesToWorkspace(sourcePages, { currentPage: sourcePages.length - 1 })) {
+    toast("불러올 장면이 없어요.");
+    return false;
+  }
+
+  const templateKey = resolveTemplateKeyFromBook(book) || book.templateKey || book.art || state.template;
+  if (templateKey && (TEMPLATES[templateKey] || CLASSIC_STORIES[templateKey])) {
+    state.template = templateKey;
+  }
+  const classic = CLASSIC_STORIES[state.template];
+  state.templateImage = (classic && classic.image) || book.coverImage || extractCoverImage(book) || state.templateImage;
+  currentTemplateImage = state.templateImage;
+  if (book.character && CHARACTERS[book.character]) state.character = book.character;
+
+  bindActiveBookId(book.id);
+  state.story = {
+    id: book.id,
+    libraryId: book.id,
+    activeBookId: book.id,
+    title: book.title,
+    kr: book.kr,
+    emoji: book.emoji,
+    cover: book.cover,
+    coverImage: book.coverImage || extractCoverImage(book) || "",
+    art: book.art || state.template || null,
+    image: state.templateImage,
+    templateKey: state.template || book.templateKey || null,
+    userCreated: true,
+    pages: storyPages,
+    published: !!book.published,
+    level: state.level
+  };
+
+  closeSampleReader();
+  setTab("create");
+  renderCharacter();
+  renderLevel();
+  syncTemplateCardHighlight(state.template);
+  const latest = storyPages[storyPages.length - 1];
+  const latestEn = latest ? (latest.text_en || plainLine(latest.en || [])) : "";
+  if (storyPages.length <= 1 && !(book.relayState && book.relayState.suggestions && book.relayState.suggestions.length)) {
+    resetRelayComposerToTemplate();
+  } else {
+    // 서재에 저장된 마지막 추천어/사용 이력 복원 (없으면 마지막 장면 기준 새로 생성)
+    applyRelayStateFromBook(book, latestEn);
+  }
+  updateUI();
+  syncTemplateCardHighlight(state.template);
+  persistActiveDraft();
+  $("flipWrap").scrollIntoView({ behavior: "smooth", block: "center" });
+  toast("서재의 동화를 불러왔어요. 이어서 써 보세요! ✨");
+  return true;
+}
+
+function hashString(text) {
+  const source = String(text || "");
+  let hash = 0;
+  for (let i = 0; i < source.length; i++) {
+    hash = ((hash << 5) - hash) + source.charCodeAt(i);
+    hash |= 0;
+  }
+  return Math.abs(hash);
+}
+
+function extractCoverImage(book) {
+  if (!book) return "";
+  const candidates = [
+    book.coverImage,
+    book.imageUrl,
+    book.image,
+    book.thumbnail
+  ];
+  for (let i = 0; i < candidates.length; i++) {
+    const value = String(candidates[i] || "").trim();
+    if (value && value !== "friends-quilt") return value;
+  }
+  if (Array.isArray(book.pages)) {
+    for (let i = 0; i < book.pages.length; i++) {
+      const pageImage = book.pages[i] && book.pages[i].image;
+      if (pageImage) return String(pageImage);
+    }
+  }
+  const key = book.templateKey || book.art;
+  if (key && CLASSIC_STORIES[key] && CLASSIC_STORIES[key].image) {
+    return CLASSIC_STORIES[key].image;
+  }
+  return "";
+}
+
+function resolveThemeByKeywords(titleText) {
+  const text = String(titleText || "").toLowerCase();
+  const rules = [
+    {
+      test: /(돼지|pig|pigs)/i,
+      emoji: "🐷",
+      cover: "linear-gradient(160deg,#ff9eb5,#ffd0a8)"
+    },
+    {
+      test: /(앨리스|alice|wonderland|시계|토끼|rabbit|teapot|tea)/i,
+      emoji: "🫖",
+      altEmoji: "🕰️",
+      cover: "linear-gradient(160deg,#c4b5fd,#f9a8d4)"
+    },
+    {
+      test: /(빨간\s*모자|red riding|riding hood|늑대|wolf|숲|forest)/i,
+      emoji: "🧺",
+      altEmoji: "🍎",
+      cover: "linear-gradient(160deg,#86efac,#fde68a)"
+    },
+    {
+      test: /(황금거위|golden goose|goose|거위|오리|duck|새|swan|bird)/i,
+      emoji: "🪿",
+      altEmoji: "🦢",
+      cover: "linear-gradient(160deg,#fde68a,#fdba74)"
+    },
+    {
+      test: /(우주|space|별|star|달|moon|로켓|rocket)/i,
+      emoji: "🚀",
+      altEmoji: "🌟",
+      cover: "linear-gradient(160deg,#93c5fd,#c7d2fe)"
+    },
+    {
+      test: /(바다|ocean|sea|인어|mermaid|물고기|fish|whale)/i,
+      emoji: "🐳",
+      cover: "linear-gradient(160deg,#67e8f9,#a7f3d0)"
+    },
+    {
+      test: /(공룡|dino|dinosaur|dragon|드래곤|마법|magic|wizard|spell)/i,
+      emoji: "🐉",
+      altEmoji: "🪄",
+      cover: "linear-gradient(160deg,#f9a8d4,#ddd6fe)"
+    }
+  ];
+  for (let i = 0; i < rules.length; i++) {
+    if (rules[i].test.test(text)) {
+      const pickAlt = rules[i].altEmoji && (hashString(text) % 2 === 1);
+      return {
+        emoji: pickAlt ? rules[i].altEmoji : rules[i].emoji,
+        cover: rules[i].cover,
+        matched: true
+      };
+    }
+  }
+  return null;
+}
+
+function resolveHashCoverTheme(seedText) {
+  const palettes = [
+    { emoji: "📖", cover: "linear-gradient(160deg,#fecdd3,#fed7aa)" }, // peach
+    { emoji: "🏰", cover: "linear-gradient(160deg,#a7f3d0,#bbf7d0)" }, // mint
+    { emoji: "🌈", cover: "linear-gradient(160deg,#93c5fd,#c4b5fd)" }, // sky
+    { emoji: "🦄", cover: "linear-gradient(160deg,#e9d5ff,#fbcfe8)" }, // lavender
+    { emoji: "🧸", cover: "linear-gradient(160deg,#fde68a,#fcd34d)" }  // lemon
+  ];
+  return palettes[hashString(seedText) % palettes.length];
+}
+
+function resolveBookCoverTheme(book) {
+  const title = String((book && book.title) || "");
+  const kr = String((book && book.kr) || "");
+  const seed = [title, kr, (book && book.id) || "", (book && book.templateKey) || ""].join("|");
+  const coverImage = extractCoverImage(book);
+  const keywordTheme = resolveThemeByKeywords(title + " " + kr);
+  const hashTheme = resolveHashCoverTheme(seed);
+  const theme = keywordTheme || hashTheme;
+  return {
+    emoji: theme.emoji,
+    cover: theme.cover,
+    coverImage: coverImage,
+    coverStyle: ""
+  };
+}
+
+function captureRelayState() {
+  return {
+    suggestions: Array.isArray(state.lastSuggestions) ? state.lastSuggestions.slice(0, 3) : [],
+    usedSuggestions: Array.isArray(state.usedSuggestions) ? state.usedSuggestions.slice() : [],
+    relayTemplate: state.relayMadlib || "",
+    relayMadlib: state.relayMadlib || "",
+    relayMadlibKo: state.relayMadlibKo || "",
+    relayTemplateKo: state.relayMadlibKo || "",
+    suggestionPoolCursor: Number(state.suggestionPoolCursor) || 0
+  };
+}
+
+function normalizeRelayState(raw) {
+  if (!raw || typeof raw !== "object") return null;
+  const suggestions = Array.isArray(raw.suggestions)
+    ? raw.suggestions.map((item) => String(item || "").trim()).filter(Boolean).slice(0, 3)
+    : (Array.isArray(raw.lastSuggestions)
+      ? raw.lastSuggestions.map((item) => String(item || "").trim()).filter(Boolean).slice(0, 3)
+      : []);
+  const usedSuggestions = Array.isArray(raw.usedSuggestions)
+    ? raw.usedSuggestions.map((item) => String(item || "").trim()).filter(Boolean)
+    : [];
+  let relayTemplate = String(raw.relayTemplate || raw.relayMadlib || "").trim();
+  if (!relayTemplate || isLegacyJustNowMadlib(relayTemplate)) {
+    relayTemplate = getCleanRelayMadlib();
+  }
+  let relayMadlibKo = String(raw.relayMadlibKo || raw.relayTemplateKo || "").trim();
+  if (!relayMadlibKo) relayMadlibKo = getCleanRelayMadlibKo();
+  return {
+    suggestions: suggestions,
+    usedSuggestions: usedSuggestions,
+    relayTemplate: relayTemplate,
+    relayMadlib: relayTemplate,
+    relayMadlibKo: relayMadlibKo,
+    relayTemplateKo: relayMadlibKo,
+    suggestionPoolCursor: Number(raw.suggestionPoolCursor) || 0
+  };
+}
+
+function applyRelayStateFromBook(book, latestEnglish) {
+  const saved = normalizeRelayState(book && (book.relayState || book.relay));
+  const fallbackEn = latestEnglish || "";
+  state.usedSuggestions = (saved && saved.usedSuggestions) ? saved.usedSuggestions.slice() : [];
+  state.suggestionPoolCursor = (saved && saved.suggestionPoolCursor) || 0;
+  const savedSuggestions = saved && saved.suggestions ? saved.suggestions.slice(0, 3) : [];
+  const needsRefresh = shouldRefreshRelaySuggestions(savedSuggestions);
+  state.lastSuggestions = needsRefresh
+    ? inventSuggestionsFromScene(fallbackEn, "")
+    : savedSuggestions;
+  const savedMadlib = sanitizeRelayMadlibText(
+    (saved && saved.relayTemplate) || ""
+  );
+  const savedKo = saved && saved.relayMadlibKo ? String(saved.relayMadlibKo).trim() : "";
+  const useContextual = needsRefresh || !saved || !saved.relayTemplate
+    || isLegacyJustNowMadlib(saved.relayTemplate)
+    || isRelayPairLikelyMismatched(savedMadlib, savedKo);
+  if (useContextual) {
+    state.relayMadlib = buildRelayMadlibFromScene(fallbackEn);
+    state.relayMadlibKo = buildRelayMadlibKoFromScene(fallbackEn, state.relayMadlib);
+  } else {
+    state.relayMadlib = savedMadlib;
+    state.relayMadlibKo = savedKo || pairedRelayMadlibKoForEnglish(savedMadlib);
+  }
+  updateRelayComposerFromLatestScene({
+    english: fallbackEn,
+    madlib: state.relayMadlib,
+    madlibKo: state.relayMadlibKo,
+    suggestions: state.lastSuggestions,
+    forceRefresh: needsRefresh,
+    preferLocalContextual: useContextual
+  });
+  return !needsRefresh;
+}
+
+function normalizeStoredBook(book) {
+  if (!book || !book.id || !book.title) return null;
+  // 통합본은 절대 정규화/테마 덮어쓰기 하지 않음
+  if (book.id === FRIENDS_OMNIBUS_ID || book.coverStyle === "friends-quilt") return null;
+  const published = !!book.published;
+  const pages = Array.isArray(book.pages) ? cloneStoryPagesForLibrary(book.pages) : null;
+  const themed = resolveBookCoverTheme({
+    id: book.id,
+    title: book.title,
+    kr: book.kr,
+    templateKey: book.templateKey || book.art || null,
+    art: book.art || null,
+    pages: pages,
+    coverImage: book.coverImage,
+    imageUrl: book.imageUrl,
+    image: book.image,
+    thumbnail: book.thumbnail
+  });
+  const relayState = normalizeRelayState(book.relayState || book.relay) || null;
+  return {
+    id: String(book.id),
+    title: String(book.title),
+    kr: String(book.kr || ""),
+    emoji: themed.emoji,
+    cover: themed.cover,
+    coverImage: themed.coverImage || "",
+    coverStyle: "",
+    note: published ? "출판 완료" : "작성 중",
+    pages: pages,
+    published: published,
+    art: book.art || null,
+    templateKey: book.templateKey || null,
+    character: book.character || null,
+    userCreated: !!book.userCreated || /^(user-|made-|gemini-)/.test(String(book.id)),
+    relayState: relayState,
+    isStarter: false
+  };
+}
+
+function normalizeBookTitleKey(title) {
+  return String(title || "").toLowerCase().replace(/\s+/g, " ").trim();
+}
+
+function bookSceneCount(book) {
+  if (!book) return 0;
+  if (Array.isArray(book.pages)) return book.pages.length;
+  if (Array.isArray(book.scenes)) return book.scenes.length;
+  return 0;
+}
+
+function bookIdentityKey(book) {
+  if (!book) return "";
+  const titleKey = normalizeBookTitleKey(book.title);
+  const krKey = normalizeBookTitleKey(book.kr);
+  const templateKey = String(book.templateKey || book.art || "").toLowerCase();
+  // 같은 영문 제목이면 동일 동화로 취급 (Alice in Wonderland 중복 정리용)
+  if (titleKey) return "title:" + titleKey;
+  if (templateKey) return "tpl:" + templateKey;
+  if (krKey) return "kr:" + krKey;
+  return book.id ? "id:" + book.id : "";
+}
+
+function preferRicherBook(a, b) {
+  const aCount = bookSceneCount(a);
+  const bCount = bookSceneCount(b);
+  if (aCount !== bCount) return aCount >= bCount ? a : b;
+  // 장면 수가 같으면 더 최근에 가까운 id(뒤에 온 값) 유지
+  return b || a;
+}
+
+function dedupeLibraryBooks(list) {
+  const byId = {};
+  (Array.isArray(list) ? list : []).forEach((book) => {
+    if (!book || !book.id) return;
+    byId[book.id] = byId[book.id] ? preferRicherBook(byId[book.id], book) : book;
+  });
+  const uniqueById = Object.keys(byId).map((id) => byId[id]);
+  const byIdentity = {};
+  uniqueById.forEach((book) => {
+    const key = bookIdentityKey(book) || ("id:" + book.id);
+    byIdentity[key] = byIdentity[key] ? preferRicherBook(byIdentity[key], book) : book;
+  });
+  return Object.keys(byIdentity).map((key) => byIdentity[key]);
+}
+
+function ensureOmnibusFirst(list) {
+  const cleaned = (Array.isArray(list) ? list : [])
+    .map(normalizeStoredBook)
+    .filter((book) => book && book.id !== FRIENDS_OMNIBUS_ID && !isOneTimeLibraryDummy(book));
+  const deduped = dedupeLibraryBooks(cleaned);
+  return [makeOmnibusBook()].concat(deduped);
+}
+
+function sanitizeBooksList(list) {
+  return ensureOmnibusFirst(list);
+}
+
+function persistBooks() {
+  try {
+    const toSave = dedupeLibraryBooks(
+      (state.books || [])
+        .filter((book) => book && book.id !== FRIENDS_OMNIBUS_ID)
+        .map((book) => normalizeStoredBook(book))
+        .filter(Boolean)
+    );
+    localStorage.setItem(BOOKS_STORAGE_KEY, JSON.stringify({ version: 4, books: toSave }));
+  } catch (err) {
+    console.warn("[StoryLoom] 서재 저장 실패:", err && err.message);
+  }
+}
+
+function loadBooksFromStorage() {
+  try {
+    const raw = localStorage.getItem(BOOKS_STORAGE_KEY);
+    if (!raw) return ensureOmnibusFirst([]);
+    const parsed = JSON.parse(raw);
+    const list = Array.isArray(parsed) ? parsed : (parsed && parsed.books);
+    return ensureOmnibusFirst(list);
+  } catch (err) {
+    return ensureOmnibusFirst([]);
+  }
+}
+
+function findMatchingLibraryBook(hint) {
+  const books = Array.isArray(state.books) && state.books.length
+    ? state.books
+    : loadBooksFromStorage();
+  if (!hint) return null;
+  if (hint.id) {
+    const byId = books.find((book) => book && book.id === hint.id && book.id !== FRIENDS_OMNIBUS_ID);
+    if (byId) return byId;
+  }
+  if (hint.libraryId) {
+    const byLibraryId = books.find((book) => book && book.id === hint.libraryId);
+    if (byLibraryId) return byLibraryId;
+  }
+  const identity = bookIdentityKey(hint);
+  if (identity) {
+    const byIdentity = books.find((book) => book && book.id !== FRIENDS_OMNIBUS_ID && bookIdentityKey(book) === identity);
+    if (byIdentity) return byIdentity;
+  }
+  const templateKey = String(hint.templateKey || hint.art || "").toLowerCase();
+  if (templateKey) {
+    const byTemplate = books.find((book) => {
+      if (!book || book.id === FRIENDS_OMNIBUS_ID) return false;
+      return String(book.templateKey || book.art || "").toLowerCase() === templateKey;
+    });
+    if (byTemplate) return byTemplate;
+  }
+  return null;
+}
+
+function bindActiveBookId(bookId) {
+  if (!bookId || bookId === FRIENDS_OMNIBUS_ID) return;
+  state.activeBookId = bookId;
+  if (!state.story) state.story = {};
+  state.story.libraryId = bookId;
+  state.story.id = bookId;
+  state.story.activeBookId = bookId;
+}
+
+function linkActiveStoryToExistingLibraryBook() {
+  if (!state.story) return null;
+  // 이어쓰기 모드에서만 명시적 bookId로 연결 (제목/템플릿 자동 매칭으로 원본을 덮지 않음)
+  const explicitIds = [
+    state.activeBookId,
+    state.story.libraryId,
+    state.story.activeBookId
+  ].filter((id) => id && id !== FRIENDS_OMNIBUS_ID && !/^classic-/.test(String(id)));
+  for (let i = 0; i < explicitIds.length; i++) {
+    const found = findBook(explicitIds[i]);
+    if (found) {
+      bindActiveBookId(found.id);
+      return found;
+    }
+  }
+  return null;
+}
+
+function isCurrentStoryInLibrary() {
+  if (state.activeBookId && findBook(state.activeBookId)) return true;
+  if (state.story && state.story.libraryId && findBook(state.story.libraryId)) return true;
+  return false;
+}
+
+function resolveActiveLibraryId(createIfMissing) {
+  const linked = linkActiveStoryToExistingLibraryBook();
+  if (linked) return linked.id;
+  if (state.activeBookId && findBook(state.activeBookId)) return state.activeBookId;
+  if (state.story && state.story.libraryId && findBook(state.story.libraryId)) {
+    return state.story.libraryId;
+  }
+  if (state.story && state.story.id && /^(user-|made-|gemini-)/.test(String(state.story.id)) && findBook(state.story.id)) {
+    return state.story.id;
+  }
+  if (createIfMissing) return "user-" + Date.now();
+  return null;
+}
+
+function buildLibraryBookFromCurrentStory(options) {
+  const opts = options || {};
+  const tpl = TEMPLATES[state.template] || TEMPLATES.pigs;
+  const classic = CLASSIC_STORIES[state.template] || null;
+  const story = state.story || {};
+  const pages = cloneStoryPagesForLibrary(storyPages.length ? storyPages : (story.pages || []));
+  if (!pages.length) return null;
+  const characterKey = state.character || (story.character || null);
+  const libraryId = resolveActiveLibraryId(opts.createIfMissing !== false);
+  if (!libraryId) return null;
+  const existing = findBook(libraryId);
+  const isNewBook = !existing;
+  let title = story.title || (classic && classic.title) || tpl.en || "My Story";
+  let kr = story.kr || tpl.title || "내가 만든 동화";
+  if (isNewBook) {
+    const unique = allocateUniqueLibraryTitles(
+      title || (classic && classic.title) || tpl.en || "My Story",
+      kr || tpl.title || "내가 만든 동화"
+    );
+    title = unique.title;
+    kr = unique.kr;
+    if (!state.story) state.story = {};
+    state.story.title = title;
+    state.story.kr = kr;
+  }
+  const draft = {
+    id: libraryId,
+    title: title,
+    kr: kr,
+    templateKey: story.templateKey || state.template || null,
+    art: story.art || tpl.art || null,
+    pages: pages,
+    coverImage: story.coverImage || story.imageUrl || story.image || "",
+    imageUrl: story.imageUrl || "",
+    image: story.image || currentTemplateImage || (classic && classic.image) || "",
+    thumbnail: story.thumbnail || ""
+  };
+  const themed = resolveBookCoverTheme(draft);
+  const relayState = captureRelayState();
+  return {
+    id: libraryId,
+    title: title,
+    kr: kr,
+    emoji: themed.emoji,
+    cover: themed.cover,
+    coverImage: themed.coverImage || "",
+    coverStyle: "",
+    note: "작성 중",
+    pages: pages,
+    scenes: pages,
+    published: false,
+    art: story.art || tpl.art || null,
+    templateKey: story.templateKey || state.template || null,
+    character: characterKey,
+    userCreated: true,
+    activeBookId: libraryId,
+    relayState: relayState,
+    isStarter: false
+  };
+}
+
+function upsertBookIntoLibrary(book) {
+  if (!book || !book.id) return { updated: false, book: null };
+  state.books = loadBooksFromStorage();
+  // id로만 갱신 — 제목/템플릿 자동 매칭으로 다른 책을 덮어쓰지 않음
+  const existingIndex = state.books.findIndex((item) => item && item.id === book.id);
+  let updated = false;
+  if (existingIndex >= 0) {
+    const previous = state.books[existingIndex];
+    const wasPublished = !!(previous && previous.published);
+    book.published = wasPublished;
+    book.note = wasPublished ? "출판 완료" : "작성 중";
+    book.id = previous.id;
+    state.books[existingIndex] = book;
+    updated = true;
+  } else {
+    state.books.splice(1, 0, book);
+    updated = false;
+  }
+  state.books = ensureOmnibusFirst(state.books);
+  persistBooks();
+  shelfBooks();
+  bindActiveBookId(book.id);
+  return { updated: updated, book: book };
+}
+
+function syncActiveStoryToLibrary(options) {
+  const opts = options || {};
+  const createIfMissing = opts.createIfMissing !== false;
+  if (!storyPages.length && !(state.story && state.story.pages && state.story.pages.length)) {
+    if (!opts.silent) toast("먼저 동화 장면을 만들어 주세요.");
+    return { ok: false, updated: false };
+  }
+  // 자동 동기화는 이미 등록된 책만
+  if (!createIfMissing && !isCurrentStoryInLibrary()) {
+    return { ok: false, updated: false };
+  }
+  const book = buildLibraryBookFromCurrentStory({ createIfMissing: createIfMissing });
+  if (!book) {
+    if (!opts.silent) toast("서재에 넣을 동화 내용이 없어요.");
+    return { ok: false, updated: false };
+  }
+  if (!state.story) state.story = {};
+  state.story.pages = storyPages;
+  state.story.userCreated = true;
+  state.story.cover = book.cover;
+  state.story.coverImage = book.coverImage || "";
+  state.story.emoji = book.emoji;
+  state.story.character = book.character;
+  state.story.title = book.title;
+  state.story.kr = book.kr;
+  state.story.templateKey = book.templateKey;
+  const result = upsertBookIntoLibrary(book);
+  persistActiveDraft();
+  return { ok: true, updated: result.updated, book: result.book };
+}
+
+function saveCurrentStoryToLibrary() {
+  const result = syncActiveStoryToLibrary({ silent: true, createIfMissing: true });
+  return !!(result && result.ok);
+}
+
+function bookCoverHtml(book, mode) {
+  if (book && (book.coverStyle === "friends-quilt" || book.cover === "friends-quilt" || book.id === FRIENDS_OMNIBUS_ID)) {
+    return friendsQuiltCoverHtml(mode === "modal" ? "is-modal" : "is-shelf");
+  }
+  const emoji = (book && book.emoji) || "📖";
+  const title = (book && book.title) || "My Story";
+  const image = (book && (book.coverImage || extractCoverImage(book))) || "";
+  const isModal = mode === "modal";
+  if (image) {
+    return (
+      '<div class="book-cover-with-image' + (isModal ? " is-modal" : "") + '">' +
+        '<div class="book-cover-thumb-wrap">' +
+          '<img src="' + esc(image) + '" alt="" class="book-cover-thumb" loading="lazy">' +
+        "</div>" +
+        '<div class="book-cover-meta">' +
+          '<span class="book-cover-emoji">' + emoji + "</span>" +
+          '<span class="book-cover-title">' + esc(title) + "</span>" +
+        "</div>" +
+      "</div>"
+    );
+  }
+  if (isModal) {
+    return (
+      '<div class="book-cover-emoji-only is-modal">' +
+        '<span class="book-cover-emoji">' + emoji + "</span>" +
+        '<span class="book-cover-title">' + esc(title) + "</span>" +
+      "</div>"
+    );
+  }
+  return (
+    '<div class="book-cover-emoji-only">' +
+      '<span class="book-cover-emoji">' + emoji + "</span>" +
+      '<span class="book-cover-title">' + esc(title) + "</span>" +
+    "</div>"
+  );
 }
 
 function shelfBooks() {
   const rows = [];
   for (let i = 0; i < state.books.length; i += 3) rows.push(state.books.slice(i, i + 3));
-  $("bookshelf").innerHTML = rows.map((row) => '<div><div class="flex flex-wrap items-end gap-4 px-2">' + row.map((book) => '<button type="button" data-action="publish" data-id="' + esc(book.id) + '" class="book-stand w-28 text-left sm:w-32"><div class="flex h-40 flex-col justify-between rounded-2xl p-3 text-white shadow-lg" style="background:' + book.cover + '"><span class="text-3xl">' + book.emoji + '</span><span class="text-sm font-black leading-tight text-white">' + esc(book.title) + '</span></div><p class="mt-2 text-center text-xs font-extrabold text-slate-700 dark:text-gray-200">' + esc(book.note) + "</p></button>").join("") + '</div><div class="shelf-wood mt-2"></div></div>').join("");
+  $("bookshelf").innerHTML = rows.map((row) => '<div><div class="flex flex-wrap items-end gap-4 px-2">' + row.map((book) => {
+    const status = bookStatusLabel(book);
+    const kr = book.kr || "";
+    const isQuilt = book.coverStyle === "friends-quilt" || book.cover === "friends-quilt" || book.id === FRIENDS_OMNIBUS_ID;
+    const coverInner = bookCoverHtml(book, "shelf");
+    const hasImage = !isQuilt && !!(book.coverImage || extractCoverImage(book));
+    const pastel = book.cover || "linear-gradient(160deg,#c4b5fd,#f9a8d4)";
+    const coverStyle = isQuilt ? "" : ' style="background:' + pastel + '"';
+    const coverClass = isQuilt
+      ? "book-cover-shell h-40 overflow-hidden rounded-2xl shadow-lg"
+      : ("book-cover-card h-40 overflow-hidden rounded-2xl shadow-lg" + (hasImage ? " has-image" : " flex flex-col justify-between p-3 text-white"));
+    const action = isFriendsOmnibusBook(book) ? "read-sample" : "read-library";
+    return (
+      '<button type="button" data-action="' + action + '" data-id="' + esc(book.id) + '" class="book-stand w-28 text-left sm:w-32">' +
+        '<div class="' + coverClass + '"' + coverStyle + ">" + coverInner + "</div>" +
+        (kr ? '<p class="mt-1.5 text-center text-[11px] font-extrabold text-slate-500 dark:text-gray-300">' + esc(kr) + "</p>" : "") +
+        '<p class="mt-1 text-center"><span class="' + bookStatusClass(book) + '">' + esc(status) + "</span></p>" +
+      "</button>"
+    );
+  }).join("") + '</div><div class="shelf-wood mt-2"></div></div>').join("");
+}
+
+const WEEK_ACTIVITY_KEY = "storyloom-week-activity";
+const WEEK_VOCAB_COUNT_KEY = "storyloom-week-vocab-count";
+const LEARNING_POINTS = {
+  vocab: 1,
+  word_view: 2,
+  story: 1, // 자유 창작 AI 릴레이 작문
+  relay: 1, // 하위 호환
+  community: 1, // 커뮤니티 이어쓰기
+  publish: 5
+};
+
+function pad2(n) {
+  return String(n).padStart(2, "0");
+}
+
+function resolveLevelKey(level) {
+  return LEVELS[level] ? level : (LEVELS[state.level] ? state.level : "beginner");
+}
+
+function weekActivityStorageKey(level) {
+  return WEEK_ACTIVITY_KEY + ":" + resolveLevelKey(level);
+}
+
+function getMondayDateKey(baseDate) {
+  const source = baseDate instanceof Date ? baseDate : new Date();
+  const date = new Date(source.getFullYear(), source.getMonth(), source.getDate());
+  const day = date.getDay(); // 0=일 ... 6=토
+  const diff = day === 0 ? -6 : 1 - day;
+  date.setDate(date.getDate() + diff);
+  return date.getFullYear() + "-" + pad2(date.getMonth() + 1) + "-" + pad2(date.getDate());
+}
+
+function todayDateKey(baseDate) {
+  const source = baseDate instanceof Date ? baseDate : new Date();
+  return source.getFullYear() + "-" + pad2(source.getMonth() + 1) + "-" + pad2(source.getDate());
+}
+
+function todayWeekdayIndex(baseDate) {
+  const day = (baseDate instanceof Date ? baseDate : new Date()).getDay();
+  return (day + 6) % 7; // 월=0 ... 일=6
+}
+
+function emptyWeekCounts() {
+  return [0, 0, 0, 0, 0, 0, 0];
+}
+
+function normalizeWeekCounts(counts) {
+  const next = emptyWeekCounts();
+  if (!Array.isArray(counts)) return next;
+  for (let i = 0; i < 7; i++) {
+    const n = Number(counts[i]);
+    next[i] = Number.isFinite(n) && n > 0 ? Math.floor(n) : 0;
+  }
+  return next;
+}
+
+function parseWeekActivityPayload(raw, weekStart) {
+  if (!raw) return { weekStart: weekStart, counts: emptyWeekCounts(), viewedWords: {} };
+  try {
+    const parsed = JSON.parse(raw);
+    if (!parsed || parsed.weekStart !== weekStart) {
+      return { weekStart: weekStart, counts: emptyWeekCounts(), viewedWords: {} };
+    }
+    return {
+      weekStart: weekStart,
+      counts: normalizeWeekCounts(parsed.counts),
+      viewedWords: parsed.viewedWords && typeof parsed.viewedWords === "object" ? parsed.viewedWords : {}
+    };
+  } catch (err) {
+    return { weekStart: weekStart, counts: emptyWeekCounts(), viewedWords: {} };
+  }
+}
+
+function migrateLegacyWeekActivity(weekStart) {
+  try {
+    const legacy = localStorage.getItem(WEEK_ACTIVITY_KEY);
+    if (!legacy) return;
+    const parsed = parseWeekActivityPayload(legacy, weekStart);
+    const beginnerKey = weekActivityStorageKey("beginner");
+    if (!localStorage.getItem(beginnerKey) && parsed.weekStart === weekStart) {
+      localStorage.setItem(beginnerKey, JSON.stringify(parsed));
+    }
+    localStorage.removeItem(WEEK_ACTIVITY_KEY);
+  } catch (err) { /* ignore */ }
+}
+
+function loadWeekActivity(level) {
+  const weekStart = getMondayDateKey();
+  migrateLegacyWeekActivity(weekStart);
+  try {
+    const raw = localStorage.getItem(weekActivityStorageKey(level));
+    return parseWeekActivityPayload(raw, weekStart);
+  } catch (err) {
+    return { weekStart: weekStart, counts: emptyWeekCounts(), viewedWords: {} };
+  }
+}
+
+function persistWeekActivity(level) {
+  const lvl = resolveLevelKey(level);
+  try {
+    localStorage.setItem(weekActivityStorageKey(lvl), JSON.stringify({
+      weekStart: state.weekStart || getMondayDateKey(),
+      counts: normalizeWeekCounts(state.week),
+      viewedWords: state.weekViewedWords || {}
+    }));
+  } catch (err) { /* file:// 등에서 저장이 막힐 수 있음 */ }
+}
+
+function syncWeekActivityFromStorage(level) {
+  const lvl = resolveLevelKey(level);
+  const data = loadWeekActivity(lvl);
+  state.weekLevel = lvl;
+  state.weekStart = data.weekStart;
+  state.week = data.counts.slice();
+  state.weekViewedWords = data.viewedWords || {};
+  return state.week;
+}
+
+function loadWeekVocabCount() {
+  const weekStart = getMondayDateKey();
+  try {
+    const raw = localStorage.getItem(WEEK_VOCAB_COUNT_KEY);
+    if (!raw) return { weekStart: weekStart, count: 0 };
+    const parsed = JSON.parse(raw);
+    if (!parsed || parsed.weekStart !== weekStart) return { weekStart: weekStart, count: 0 };
+    const count = Math.max(0, Math.floor(Number(parsed.count) || 0));
+    return { weekStart: weekStart, count: count };
+  } catch (err) {
+    return { weekStart: weekStart, count: 0 };
+  }
+}
+
+function persistWeekVocabCount() {
+  try {
+    localStorage.setItem(WEEK_VOCAB_COUNT_KEY, JSON.stringify({
+      weekStart: state.weekVocabWeekStart || getMondayDateKey(),
+      count: Math.max(0, Math.floor(Number(state.weekVocabCount) || 0))
+    }));
+  } catch (err) { /* ignore */ }
+}
+
+function syncWeekVocabCountFromStorage() {
+  const data = loadWeekVocabCount();
+  state.weekVocabWeekStart = data.weekStart;
+  state.weekVocabCount = data.count;
+  return data.count;
+}
+
+function bumpWeekVocabCount() {
+  syncWeekVocabCountFromStorage();
+  state.weekVocabCount = (Number(state.weekVocabCount) || 0) + 1;
+  persistWeekVocabCount();
+  return state.weekVocabCount;
+}
+
+function recordLearningPoints(points, kind) {
+  const add = Math.max(0, Math.floor(Number(points) || 0));
+  if (!add) return null;
+  syncWeekActivityFromStorage(state.level);
+  const idx = todayWeekdayIndex();
+  state.week[idx] = (Number(state.week[idx]) || 0) + add;
+  persistWeekActivity(state.level);
+  if (state.tab === "parents" && state.parentUnlocked) renderParents();
+  return { kind: kind || "activity", points: add, dayIndex: idx, count: state.week[idx], level: state.level };
+}
+
+function recordLearningActivity(kind) {
+  const points = LEARNING_POINTS[kind] != null ? LEARNING_POINTS[kind] : 1;
+  return recordLearningPoints(points, kind);
+}
+
+function recordWordViewScore(word) {
+  const key = String(word || "").toLowerCase().trim();
+  if (!key) return null;
+  syncWeekActivityFromStorage(state.level);
+  const stamp = todayDateKey() + "::" + key;
+  if (!state.weekViewedWords) state.weekViewedWords = {};
+  if (state.weekViewedWords[stamp]) return null;
+  state.weekViewedWords[stamp] = true;
+  persistWeekActivity(state.level);
+  return recordLearningPoints(LEARNING_POINTS.word_view, "word_view");
+}
+
+function weekPointsTotal(week) {
+  return normalizeWeekCounts(week).reduce((sum, n) => sum + n, 0);
 }
 
 function renderParents() {
+  syncWeekActivityFromStorage(state.level);
+  syncWeekVocabCountFromStorage();
   const published = state.books.filter((b) => b.published).length;
   const info = LEVELS[state.level];
-  const max = Math.max.apply(null, state.week.concat([1]));
+  const week = normalizeWeekCounts(state.week);
+  const totalPoints = weekPointsTotal(week);
+  const vocabLearned = Math.max(0, Math.floor(Number(state.weekVocabCount) || 0));
+  const max = Math.max.apply(null, week.concat([1]));
   const days = ["월", "화", "수", "목", "금", "토", "일"];
-  const bars = state.week.map((n, i) => '<div class="flex items-center gap-2"><span class="w-6 text-xs font-extrabold text-slate-500 dark:text-gray-200">' + days[i] + '</span><div class="bar flex-1"><span style="width:' + Math.round((n / max) * 100) + '%"></span></div><span class="w-6 text-xs font-extrabold text-slate-700 dark:text-white">' + n + "</span></div>").join("");
-  $("parentBody").innerHTML = '<article class="rounded-3xl bg-white p-5 shadow-soft dark:bg-slate-800"><p class="text-3xl font-black text-violet-600 dark:text-white">' + state.vocab.length + '개</p><p class="mt-1 text-sm font-extrabold text-slate-700 dark:text-gray-200">이번 주 학습 어휘</p><div class="bar mt-4"><span style="width:' + Math.min(100, state.vocab.length * 8) + '%"></span></div></article><article class="rounded-3xl bg-white p-5 shadow-soft dark:bg-slate-800"><p class="text-3xl font-black text-pink-500 dark:text-white">' + published + '권</p><p class="mt-1 text-sm font-extrabold text-slate-700 dark:text-gray-200">출판한 동화</p><div class="bar mt-4"><span style="width:' + Math.min(100, published * 25) + '%"></span></div></article><article class="rounded-3xl bg-white p-5 shadow-soft dark:bg-slate-800 lg:col-span-1"><p class="text-3xl font-black text-emerald-500 dark:text-white">' + info.label + '</p><p class="mt-1 text-sm font-extrabold text-slate-700 dark:text-gray-200">현재 교과 난이도</p><div class="mt-4 space-y-2">' + bars + "</div></article>";
+  const bars = week.map((n, i) => '<div class="flex items-center gap-2"><span class="w-6 text-xs font-extrabold text-slate-500 dark:text-gray-200">' + days[i] + '</span><div class="bar flex-1"><span style="width:' + Math.round((n / max) * 100) + '%"></span></div><span class="w-8 text-right text-xs font-extrabold text-slate-700 dark:text-white">' + n + "</span></div>").join("");
+  $("parentBody").innerHTML =
+    '<article class="rounded-3xl bg-white p-5 shadow-soft dark:bg-slate-800"><p class="text-3xl font-black text-violet-600 dark:text-white">' + vocabLearned + '개</p><p class="mt-1 text-sm font-extrabold text-slate-700 dark:text-gray-200">이번 주 학습 어휘</p><p class="mt-1 text-xs font-bold text-slate-400 dark:text-gray-300">학습 완료로 지워도 누적돼요</p><div class="bar mt-4"><span style="width:' + Math.min(100, vocabLearned * 8) + '%"></span></div></article>' +
+    '<article class="rounded-3xl bg-white p-5 shadow-soft dark:bg-slate-800"><p class="text-3xl font-black text-pink-500 dark:text-white">' + published + '권</p><p class="mt-1 text-sm font-extrabold text-slate-700 dark:text-gray-200">출판한 동화</p><div class="bar mt-4"><span style="width:' + Math.min(100, published * 25) + '%"></span></div></article>' +
+    '<article class="rounded-3xl bg-white p-5 shadow-soft dark:bg-slate-800 lg:col-span-1"><p class="text-3xl font-black text-emerald-500 dark:text-white">' + totalPoints + '점</p><p class="mt-1 text-sm font-extrabold text-slate-700 dark:text-gray-200">이번 주 학습 포인트 · ' + esc(info.label) + '</p><div class="mt-4 space-y-2">' + bars + '</div><div class="parent-points-guide mt-4"><p class="parent-points-guide-title">학습 포인트 산정 기준</p><p class="parent-points-guide-text">단어 추가 +1점<br>단어 이해 +2점<br>릴레이 작문 +1점<br>커뮤니티 이어쓰기 +1점<br>책 출판 +5점</p></div></article>';
+}
+
+const COMMUNITY_STORAGE_KEY = "storyloom-community-v1";
+const RELAY_GROQ_MODELS = ["qwen/qwen3-32b", "openai/gpt-oss-20b", "openai/gpt-oss-120b"];
+const DEFAULT_COMMUNITY = [
+  {
+    id: "c1",
+    author: "하늘",
+    title: "Rainbow Bakery",
+    emoji: "🌈",
+    text: "Milo opened a bakery on a cloud. The first customer was a shy star.",
+    koText: "마일로는 구름 위에 빵집을 열었어요. 첫 손님은 수줍은 별이었어요."
+  },
+  {
+    id: "c2",
+    author: "준호",
+    title: "Forest Lanterns",
+    emoji: "🏮",
+    text: "Red Riding Hood hung lanterns so no friend would get lost.",
+    koText: "빨간 모자는 친구들이 길을 잃지 않도록 숲속에 등불을 걸어 두었어요."
+  },
+  {
+    id: "c3",
+    author: "서연",
+    title: "Goose Mail",
+    emoji: "✉️",
+    text: "The golden goose delivered thank-you letters to the whole village.",
+    koText: "황금거위는 마을 모두에게 고마움이 담긴 편지를 전해주었어요."
+  },
+  {
+    id: "c4",
+    author: "도윤",
+    title: "Rabbit Clock",
+    emoji: "⏰",
+    text: "Alice and the rabbit stopped time to finish their tea party.",
+    koText: "앨리스와 토끼는 티파티를 끝까지 즐기기 위해 시간을 잠시 멈추었어요."
+  }
+];
+
+function communityKoreanText(story) {
+  if (!story) return "";
+  return String(story.koText || story.translation || story.ko || "").trim();
+}
+
+function normalizeCommunityStory(item) {
+  if (!item || !item.id) return null;
+  const defaultsById = DEFAULT_COMMUNITY.reduce((acc, story) => {
+    acc[story.id] = story;
+    return acc;
+  }, {});
+  const fallback = defaultsById[item.id] || null;
+  const text = String(item.text || (fallback && fallback.text) || "").trim();
+  const koText = String(
+    item.koText || item.translation || item.ko || (fallback && fallback.koText) || ""
+  ).trim();
+  return {
+    id: String(item.id),
+    author: String(item.author || (fallback && fallback.author) || "친구"),
+    title: String(item.title || (fallback && fallback.title) || "Untitled Story"),
+    emoji: item.emoji || (fallback && fallback.emoji) || "📖",
+    text: text,
+    koText: koText,
+    translation: koText
+  };
+}
+
+function loadCommunityFromStorage() {
+  try {
+    const raw = localStorage.getItem(COMMUNITY_STORAGE_KEY);
+    if (!raw) return DEFAULT_COMMUNITY.map(normalizeCommunityStory).filter(Boolean);
+    const parsed = JSON.parse(raw);
+    const list = Array.isArray(parsed) ? parsed : (parsed && parsed.stories);
+    const normalized = (Array.isArray(list) ? list : []).map(normalizeCommunityStory).filter(Boolean);
+    return normalized.length ? normalized : DEFAULT_COMMUNITY.map(normalizeCommunityStory).filter(Boolean);
+  } catch (err) {
+    return DEFAULT_COMMUNITY.map(normalizeCommunityStory).filter(Boolean);
+  }
+}
+
+function persistCommunity() {
+  try {
+    localStorage.setItem(COMMUNITY_STORAGE_KEY, JSON.stringify({
+      version: 2,
+      stories: (state.community || []).map(normalizeCommunityStory).filter(Boolean)
+    }));
+  } catch (err) { /* ignore */ }
+}
+
+function renderCommunityStoryBodyHtml(story, mode) {
+  const en = String((story && story.text) || "").trim();
+  const ko = communityKoreanText(story);
+  const enClass = mode === "card" ? "community-card-en" : "relay-story-en";
+  const koClass = mode === "card" ? "community-card-ko" : "relay-story-ko";
+  return (
+    '<p class="' + enClass + '">' + esc(en || "아직 이야기가 없어요.") + "</p>" +
+    (ko ? '<p class="' + koClass + '">' + esc(ko) + "</p>" : "")
+  );
+}
+
+function renderRelayStory(story) {
+  const box = $("relayStory");
+  if (!box) return;
+  box.innerHTML = renderCommunityStoryBodyHtml(story, "relay");
 }
 
 function renderCommunity() {
-  $("communityGrid").innerHTML = state.community.map((story) => '<article class="rounded-3xl border border-violet-100 bg-white p-4 shadow-soft dark:border-slate-600 dark:bg-slate-800"><div class="text-4xl">' + story.emoji + '</div><h3 class="mt-2 text-lg font-black text-slate-900 dark:text-white">' + esc(story.title) + '</h3><p class="text-xs font-extrabold text-violet-500 dark:text-gray-200">' + esc(story.author) + '의 이야기</p><p class="mt-2 text-sm font-bold leading-relaxed text-slate-600 dark:text-gray-200">' + esc(story.text) + '</p><button type="button" data-action="open-relay" data-id="' + esc(story.id) + '" class="mt-3 rounded-2xl bg-violet-500 px-3 py-2 text-sm font-extrabold text-white">이어서 쓰기</button></article>').join("");
+  $("communityGrid").innerHTML = state.community.map((story) => (
+    '<article class="rounded-3xl border border-violet-100 bg-white p-4 shadow-soft dark:border-slate-600 dark:bg-slate-800">' +
+      '<div class="text-4xl">' + story.emoji + "</div>" +
+      '<h3 class="mt-2 text-lg font-black text-slate-900 dark:text-white">' + esc(story.title) + "</h3>" +
+      '<p class="text-xs font-extrabold text-violet-500 dark:text-gray-200">' + esc(story.author) + "의 이야기</p>" +
+      '<div class="mt-2">' + renderCommunityStoryBodyHtml(story, "card") + "</div>" +
+      '<button type="button" data-action="open-relay" data-id="' + esc(story.id) + '" class="mt-3 rounded-2xl bg-violet-500 px-3 py-2 text-sm font-extrabold text-white">이어서 쓰기</button>' +
+    "</article>"
+  )).join("");
+}
+
+function containsHangul(text) {
+  return /[가-힣]/.test(String(text || ""));
+}
+
+function looksMostlyEnglish(text) {
+  const value = String(text || "").trim();
+  if (!value) return false;
+  if (containsHangul(value)) return false;
+  return /[A-Za-z]/.test(value);
+}
+
+function ensureEnglishSentenceEnding(text) {
+  let value = String(text || "").replace(/\s+/g, " ").trim();
+  if (!value) return "";
+  if (!/[.!?]$/.test(value)) value += ".";
+  return value;
+}
+
+function ensureKoreanSentenceEnding(text) {
+  let value = String(text || "").replace(/\s+/g, " ").trim();
+  if (!value) return "";
+  if (!/[.!?…다요네까]$/.test(value)) value += ".";
+  return value;
+}
+
+function relayFallbackEnglish(koreanLine, story) {
+  const idea = String(koreanLine || "").trim();
+  const title = story && story.title ? story.title : "the story";
+  if (/문|door/i.test(idea)) return "Then a soft glowing door appeared and invited everyone closer.";
+  if (/별|star/i.test(idea)) return "Then a shy little star floated down to join the friends.";
+  if (/지도|map/i.test(idea)) return "Then a mysterious map unfolded and pointed to a gentle path.";
+  return "Then something kind and magical happened next in " + title + ".";
+}
+
+function relayFallbackKorean(englishLine, story) {
+  const idea = String(englishLine || "").trim();
+  const title = story && story.title ? story.title : "이야기";
+  if (/door/i.test(idea)) return "그러자 부드러운 빛이 나는 문이 나타나 모두를 가까이 불렀어요.";
+  if (/star/i.test(idea)) return "그러자 수줍은 작은 별이 내려와 친구들 곁에 함께했어요.";
+  if (/map/i.test(idea)) return "그러자 신비한 지도가 펼쳐지며 따뜻한 길을 가리켰어요.";
+  return "그러자 " + title + " 속에 다정하고 마법 같은 다음 장면이 이어졌어요.";
+}
+
+async function translateRelayLineToEnglish(koreanLine, story) {
+  const apiKey = getGroqApiKey();
+  if (!apiKey) throw new Error("GROQ_API_KEY가 없습니다.");
+  const level = LEVELS[state.level] || LEVELS.beginner;
+  const systemPrompt = "You are a children's fairy-tale translation API that MUST respond ONLY with a valid JSON object.\nReturn JSON with key english (one natural English fairy-tale sentence that continues the story).\nMatch the learner level: " + level.label + " — " + level.help + ".\nKeep the sentence warm, simple enough for elementary readers when beginner/intermediate, richer when advanced.\nNever include Korean. No markdown. No extra keys.";
+  const userMessage = [
+    "Story title: " + (story.title || ""),
+    "Story so far (English): " + (story.text || ""),
+    "Story so far (Korean): " + communityKoreanText(story),
+    "Korean idea to continue with: " + koreanLine,
+    "Write ONE English sentence that continues this fairy tale."
+  ].join("\n");
+  let lastError = null;
+  for (let i = 0; i < RELAY_GROQ_MODELS.length; i++) {
+    try {
+      const data = await callGroqChatJson(apiKey, RELAY_GROQ_MODELS[i], systemPrompt, userMessage, 0.4);
+      const english = ensureEnglishSentenceEnding(
+        String((data && (data.english || data.sentence || data.translation || data.text)) || "").trim()
+      );
+      if (!english || containsHangul(english)) throw new Error("empty or hangul english");
+      return english;
+    } catch (err) {
+      lastError = err;
+      console.warn("[StoryLoom] 커뮤니티 릴레이 한→영 실패:", RELAY_GROQ_MODELS[i], err && err.message);
+    }
+  }
+  throw lastError || new Error("번역 실패");
+}
+
+async function translateRelayLineToKorean(englishLine, story) {
+  const apiKey = getGroqApiKey();
+  if (!apiKey) throw new Error("GROQ_API_KEY가 없습니다.");
+  const systemPrompt = "You are a children's fairy-tale translation API that MUST respond ONLY with a valid JSON object.\nReturn JSON with key korean (one natural Korean fairy-tale sentence, warm spoken style ending with ~어요/~했어요).\nTranslate the English continuation faithfully and sweetly for elementary readers.\nNever include English words. No markdown. No extra keys.";
+  const userMessage = [
+    "Story title: " + (story.title || ""),
+    "Story so far (English): " + (story.text || ""),
+    "Story so far (Korean): " + communityKoreanText(story),
+    "English sentence to translate: " + englishLine,
+    "Write ONE Korean fairy-tale sentence."
+  ].join("\n");
+  let lastError = null;
+  for (let i = 0; i < RELAY_GROQ_MODELS.length; i++) {
+    try {
+      const data = await callGroqChatJson(apiKey, RELAY_GROQ_MODELS[i], systemPrompt, userMessage, 0.35);
+      const korean = ensureKoreanSentenceEnding(
+        String((data && (data.korean || data.translation || data.ko || data.text)) || "").trim()
+      );
+      if (!korean || !containsHangul(korean)) throw new Error("empty or non-hangul korean");
+      return korean;
+    } catch (err) {
+      lastError = err;
+      console.warn("[StoryLoom] 커뮤니티 릴레이 영→한 실패:", RELAY_GROQ_MODELS[i], err && err.message);
+    }
+  }
+  throw lastError || new Error("번역 실패");
+}
+
+function appendCommunityRelaySentence(story, englishSentence, koreanSentence) {
+  const nextEn = ensureEnglishSentenceEnding(englishSentence);
+  const nextKo = ensureKoreanSentenceEnding(koreanSentence);
+  if (!story || !nextEn) return { english: "", korean: "" };
+  story.text = String(story.text || "").replace(/\s+$/g, "");
+  story.text += (story.text ? " " : "") + nextEn;
+  story.koText = String(communityKoreanText(story) || "").replace(/\s+$/g, "");
+  if (nextKo) {
+    story.koText += (story.koText ? " " : "") + nextKo;
+  }
+  story.translation = story.koText;
+  persistCommunity();
+  return { english: nextEn, korean: nextKo };
 }
 
 function setTab(tab) {
@@ -1473,7 +3399,10 @@ function setTab(tab) {
   });
   document.querySelectorAll(".nav-btn").forEach((btn) => btn.classList.toggle("active", btn.dataset.tab === tab));
   if (tab === "vocab") renderVocab();
-  if (tab === "library") shelfBooks();
+  if (tab === "library") {
+    state.books = loadBooksFromStorage();
+    shelfBooks();
+  }
   if (tab === "parents") renderParents();
   if (tab === "community") renderCommunity();
   hideTooltip();
@@ -1526,28 +3455,64 @@ function checkPin() {
 
 function findBook(id) { return state.books.find((book) => book.id === id); }
 
+function getActiveReaderBook() {
+  if (state.sharedStory && state.sampleBookId === "shared-story") {
+    return state.sharedStory;
+  }
+  return ensurePages(findBook(state.sampleBookId || state.publishId || FRIENDS_OMNIBUS_ID));
+}
+
+function pageEnglishText(page) {
+  if (!page) return "";
+  if (page.text_en) return String(page.text_en);
+  if (Array.isArray(page.en)) return plainLine(page.en);
+  return String(page.en || page.english || "");
+}
+
+function pageKoreanText(page) {
+  if (!page) return "";
+  return String(page.text_ko || page.kr || page.korean || "");
+}
+
+function collectBookStoryPages(book) {
+  const source = book && Array.isArray(book.pages) ? book.pages
+    : (book && Array.isArray(book.scenes) ? book.scenes : []);
+  return source.map((page, index) => ({
+    scene: (page && page.scene) || (index + 1),
+    text_en: pageEnglishText(page),
+    text_ko: pageKoreanText(page),
+    image: (page && page.image) || ""
+  })).filter((page) => page.text_en || page.text_ko);
+}
+
 function ensurePages(book) {
-  if (book.pages) return book;
-  if (book.id === "space") {
-    book.art = "space";
-    book.pages = spaceStory();
+  if (!book) return book;
+  if (book.id === FRIENDS_OMNIBUS_ID) {
+    book.pages = makeOmnibusPages();
+    book.coverStyle = "friends-quilt";
+    book.cover = "friends-quilt";
     return book;
   }
-  const key = book.art && STORIES[book.art] ? book.art : "pigs";
+  if (Array.isArray(book.pages) && book.pages.length) return book;
+  if (Array.isArray(book.scenes) && book.scenes.length) {
+    book.pages = cloneStoryPagesForLibrary(book.scenes);
+    return book;
+  }
+  // 사용자 창작본은 더미 템플릿으로 덮지 않음
+  if (book.userCreated || /^(user-|made-|gemini-)/.test(String(book.id || ""))) {
+    book.pages = Array.isArray(book.pages) ? book.pages : [];
+    return book;
+  }
+  const key = (book.templateKey && STORIES[book.templateKey])
+    ? book.templateKey
+    : (book.art && STORIES[book.art] ? book.art : "pigs");
   book.pages = clonePages(key, state.level);
   return book;
 }
 
 function openPublish(id) {
-  const book = ensurePages(findBook(id));
-  state.publishId = id;
-  $("pubTitle").textContent = book.title;
-  $("pubAuthor").textContent = "저자: " + state.nickname;
-  $("pubDesc").textContent = book.kr + " · " + book.note;
-  $("bookCover").style.background = book.cover;
-  $("bookCover").innerHTML = '<span class="text-5xl">' + book.emoji + '</span><span class="mt-3 text-lg font-black leading-tight text-white">' + esc(book.title) + "</span>";
-  $("modalPublish").classList.remove("hidden");
-  $("modalPublish").classList.add("flex");
+  // 사용자 책은 페이지 넘김 뷰어로 연다
+  openLibraryReader(id);
 }
 
 function closePublish() {
@@ -1555,44 +3520,454 @@ function closePublish() {
   $("modalPublish").classList.remove("flex");
 }
 
-function asciiLine(text) {
-  return text.replace(/[^\x20-\x7E]/g, " ").replace(/\s+/g, " ").trim();
+function sampleFriendLabel(index) {
+  return ["바나비 🐰", "마일로 🐱", "다이노 🦕", "퐁이 🦊"][index] || "동화 친구";
+}
+
+function isOmnibusReaderBook(book) {
+  return !!(book && (book.id === FRIENDS_OMNIBUS_ID || book.coverStyle === "friends-quilt"));
+}
+
+function setLibraryActionsVisible(show) {
+  const panel = $("libraryReaderActions");
+  if (!panel) return;
+  panel.classList.toggle("hidden", !show);
+}
+
+function renderSampleReader() {
+  const book = getActiveReaderBook();
+  if (!book) return;
+  const pages = collectBookStoryPages(book);
+  const total = pages.length || 1;
+  if (state.samplePage < 0) state.samplePage = 0;
+  if (state.samplePage > total - 1) state.samplePage = total - 1;
+  const page = pages[state.samplePage] || { text_en: "", text_ko: "" };
+  const en = page.text_en || "";
+  const ko = page.text_ko || "";
+  const omnibus = isOmnibusReaderBook(book);
+  const coverEl = $("sampleCover");
+
+  if (omnibus) {
+    $("sampleEyebrow").textContent = "친구들의 선물";
+    $("sampleTitle").textContent = book.title;
+    $("sampleSubtitle").textContent = book.kr || "동화 친구들의 비밀 이야기";
+    $("sampleGuide").textContent = "동화 친구들이 준비한 첫 번째 선물 이야기예요!";
+    $("sampleFriend").textContent = sampleFriendLabel(state.samplePage) + "의 이야기";
+    coverEl.className = "sample-cover-shell mx-auto mt-4 h-36 w-36 overflow-hidden rounded-2xl shadow-soft";
+    coverEl.style.background = "";
+    coverEl.innerHTML = friendsQuiltCoverHtml("is-sample");
+    setLibraryActionsVisible(false);
+  } else {
+    const author = book.author || state.nickname || "꼬마 작가님";
+    $("sampleEyebrow").textContent = "내 동화 서재";
+    $("sampleTitle").textContent = book.title || "내 동화책";
+    $("sampleSubtitle").textContent = (book.kr || "내가 만든 동화") + " · 저자 " + author;
+    $("sampleGuide").textContent = "장면을 넘겨 가며 나만의 영어 동화를 읽어 보세요.";
+    $("sampleFriend").textContent = "Scene " + ((page.scene) || (state.samplePage + 1));
+    coverEl.className = "sample-cover-shell is-library-cover mx-auto mt-4 h-36 w-36 overflow-hidden rounded-2xl shadow-soft";
+    coverEl.style.background = book.cover || "linear-gradient(160deg,#c4b5fd,#f9a8d4)";
+    coverEl.innerHTML = bookCoverHtml(book, "shelf");
+    const onLastPage = state.samplePage >= total - 1;
+    setLibraryActionsVisible(onLastPage);
+    const continueWrap = $("libraryContinueWrap");
+    if (continueWrap) continueWrap.classList.remove("hidden");
+  }
+
+  if (omnibus) {
+    const continueWrap = $("libraryContinueWrap");
+    if (continueWrap) continueWrap.classList.add("hidden");
+  }
+
+  $("sampleEnglish").textContent = en || "(이 장면의 영어 문장이 아직 없어요)";
+  $("sampleKorean").textContent = ko || "";
+  $("samplePageLabel").textContent = (state.samplePage + 1) + " / " + total;
+  $("samplePrev").disabled = state.samplePage === 0;
+  $("sampleNext").disabled = state.samplePage >= total - 1;
+}
+
+function openSampleReader(id) {
+  const book = ensurePages(findBook(id || FRIENDS_OMNIBUS_ID));
+  if (!book) return;
+  state.sharedStory = null;
+  state.sampleBookId = book.id;
+  state.publishId = book.id;
+  state.samplePage = 0;
+  renderSampleReader();
+  $("modalSample").classList.remove("hidden");
+  $("modalSample").classList.add("flex");
+}
+
+function openLibraryReader(id) {
+  if (id === FRIENDS_OMNIBUS_ID) {
+    openSampleReader(id);
+    return;
+  }
+  const book = ensurePages(findBook(id));
+  if (!book) {
+    toast("서재에서 동화를 찾지 못했어요.");
+    return;
+  }
+  if (isOmnibusReaderBook(book)) {
+    openSampleReader(book.id);
+    return;
+  }
+  const pages = collectBookStoryPages(book);
+  if (!pages.length) {
+    toast("읽을 장면이 아직 없어요. 자유 창작에서 장면을 더 이어 써 보세요.");
+    return;
+  }
+  state.sharedStory = null;
+  state.sampleBookId = book.id;
+  state.publishId = book.id;
+  state.samplePage = 0;
+  renderSampleReader();
+  $("modalSample").classList.remove("hidden");
+  $("modalSample").classList.add("flex");
+}
+
+function openSharedStoryReader(payload) {
+  if (!payload || !payload.title) return;
+  const pages = Array.isArray(payload.pages) ? payload.pages.map((page, index) => ({
+    scene: index + 1,
+    text_en: pageEnglishText(page),
+    text_ko: pageKoreanText(page),
+    en: pageEnglishText(page),
+    kr: pageKoreanText(page),
+    image: page.image || ""
+  })) : [];
+  if (!pages.length) {
+    toast("공유된 동화 내용을 읽지 못했어요.");
+    return;
+  }
+  state.sharedStory = {
+    id: "shared-story",
+    title: payload.title,
+    kr: payload.kr || "",
+    author: payload.author || "꼬마 작가님",
+    emoji: payload.emoji || "📖",
+    cover: payload.cover || "linear-gradient(160deg,#c4b5fd,#f9a8d4)",
+    coverImage: payload.coverImage || "",
+    pages: pages,
+    published: false,
+    userCreated: true
+  };
+  state.sampleBookId = "shared-story";
+  state.publishId = null;
+  state.samplePage = 0;
+  setTab("library");
+  renderSampleReader();
+  $("modalSample").classList.remove("hidden");
+  $("modalSample").classList.add("flex");
+}
+
+function closeSampleReader() {
+  $("modalSample").classList.add("hidden");
+  $("modalSample").classList.remove("flex");
+  setLibraryActionsVisible(false);
+  const continueWrap = $("libraryContinueWrap");
+  if (continueWrap) continueWrap.classList.add("hidden");
+}
+
+function turnSamplePage(dir) {
+  const book = getActiveReaderBook();
+  const pages = collectBookStoryPages(book);
+  if (!pages.length) return;
+  state.samplePage = Math.max(0, Math.min(pages.length - 1, (state.samplePage || 0) + dir));
+  renderSampleReader();
+}
+
+function wrapCanvasText(ctx, text, maxWidth) {
+  const words = String(text || "").split(/\s+/).filter(Boolean);
+  const lines = [];
+  if (!words.length) return lines;
+  let current = words[0];
+  for (let i = 1; i < words.length; i++) {
+    const trial = current + " " + words[i];
+    if (ctx.measureText(trial).width <= maxWidth) {
+      current = trial;
+    } else {
+      lines.push(current);
+      current = words[i];
+    }
+  }
+  lines.push(current);
+  // 한글처럼 공백이 거의 없는 긴 줄 보정
+  const refined = [];
+  lines.forEach((line) => {
+    if (ctx.measureText(line).width <= maxWidth) {
+      refined.push(line);
+      return;
+    }
+    let chunk = "";
+    for (let i = 0; i < line.length; i++) {
+      const next = chunk + line[i];
+      if (chunk && ctx.measureText(next).width > maxWidth) {
+        refined.push(chunk);
+        chunk = line[i];
+      } else {
+        chunk = next;
+      }
+    }
+    if (chunk) refined.push(chunk);
+  });
+  return refined;
+}
+
+function drawStoryPdfPage(book, page, pageIndex, totalPages, author) {
+  const width = 1240;
+  const height = 1754;
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext("2d");
+  ctx.fillStyle = "#fffaf7";
+  ctx.fillRect(0, 0, width, height);
+  ctx.fillStyle = "#ede9fe";
+  ctx.fillRect(0, 0, width, 160);
+  ctx.fillStyle = "#6d5ef5";
+  ctx.font = "bold 36px 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif";
+  ctx.fillText("StoryLoom", 72, 70);
+  ctx.fillStyle = "#312e81";
+  ctx.font = "bold 48px 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif";
+  const titleLines = wrapCanvasText(ctx, book.title || "My Story", width - 144);
+  titleLines.slice(0, 2).forEach((line, i) => ctx.fillText(line, 72, 130 + i * 54));
+  ctx.fillStyle = "#7c3aed";
+  ctx.font = "bold 28px 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif";
+  ctx.fillText("Author: " + (author || "꼬마 작가님"), 72, 230);
+  ctx.fillText("Page " + (pageIndex + 1) + " / " + totalPages, 72, 270);
+
+  let y = 360;
+  ctx.fillStyle = "#1e1b4b";
+  ctx.font = "bold 40px 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif";
+  ctx.fillText("Scene " + (page.scene || (pageIndex + 1)), 72, y);
+  y += 70;
+  ctx.fillStyle = "#312e81";
+  ctx.font = "bold 38px 'Malgun Gothic', 'Apple SD Gothic Neo', Georgia, serif";
+  wrapCanvasText(ctx, page.text_en || "", width - 144).forEach((line) => {
+    ctx.fillText(line, 72, y);
+    y += 52;
+  });
+  y += 36;
+  ctx.fillStyle = "#475569";
+  ctx.font = "bold 34px 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif";
+  wrapCanvasText(ctx, page.text_ko || "", width - 144).forEach((line) => {
+    ctx.fillText(line, 72, y);
+    y += 48;
+  });
+  ctx.fillStyle = "#a78bfa";
+  ctx.font = "bold 24px 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif";
+  ctx.fillText("Made with StoryLoom", 72, height - 60);
+  return canvas;
+}
+
+function dataUrlToPdfBytes(dataUrl) {
+  const comma = dataUrl.indexOf(",");
+  const base64 = comma >= 0 ? dataUrl.slice(comma + 1) : dataUrl;
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes;
+}
+
+function buildImagePdf(jpegBytesList) {
+  const pageWidth = 612;
+  const pageHeight = 792;
+  const objects = [];
+  const kids = [];
+  let objNum = 3; // 1=catalog, 2=pages
+
+  jpegBytesList.forEach((jpegBytes, index) => {
+    const imageObj = objNum++;
+    const contentObj = objNum++;
+    const pageObj = objNum++;
+    kids.push(pageObj + " 0 R");
+    const content = "q\n" + pageWidth + " 0 0 " + pageHeight + " 0 0 cm\n/Im" + index + " Do\nQ\n";
+    objects.push({
+      num: imageObj,
+      body: "<< /Type /XObject /Subtype /Image /Width 1240 /Height 1754 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length " + jpegBytes.length + " >>\nstream\n"
+    });
+    objects[objects.length - 1].binary = jpegBytes;
+    objects.push({
+      num: contentObj,
+      body: "<< /Length " + content.length + " >>\nstream\n" + content + "endstream\n"
+    });
+    objects.push({
+      num: pageObj,
+      body: "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 " + pageWidth + " " + pageHeight + "] /Contents " + contentObj + " 0 R /Resources << /XObject << /Im" + index + " " + imageObj + " 0 R >> >> >>\n"
+    });
+  });
+
+  const encoder = new TextEncoder();
+  const chunks = [];
+  const pushText = (text) => chunks.push(encoder.encode(text));
+  const pushBytes = (bytes) => chunks.push(bytes);
+  pushText("%PDF-1.4\n");
+  const offsets = { 1: 0, 2: 0 };
+  const totalObjects = objNum - 1;
+
+  const writeObject = (num, body, binary) => {
+    offsets[num] = chunks.reduce((sum, part) => sum + part.length, 0);
+    pushText(num + " 0 obj\n" + body);
+    if (binary) {
+      pushBytes(binary);
+      pushText("\nendstream\nendobj\n");
+    } else {
+      pushText("endobj\n");
+    }
+  };
+
+  writeObject(1, "<< /Type /Catalog /Pages 2 0 R >>\n");
+  writeObject(2, "<< /Type /Pages /Kids [" + kids.join(" ") + "] /Count " + kids.length + " >>\n");
+  objects.forEach((obj) => writeObject(obj.num, obj.body, obj.binary || null));
+
+  const xrefStart = chunks.reduce((sum, part) => sum + part.length, 0);
+  let xref = "xref\n0 " + (totalObjects + 1) + "\n0000000000 65535 f \n";
+  for (let i = 1; i <= totalObjects; i++) {
+    xref += String(offsets[i] || 0).padStart(10, "0") + " 00000 n \n";
+  }
+  pushText(xref);
+  pushText("trailer << /Size " + (totalObjects + 1) + " /Root 1 0 R >>\nstartxref\n" + xrefStart + "\n%%EOF");
+
+  let totalLength = 0;
+  chunks.forEach((part) => { totalLength += part.length; });
+  const merged = new Uint8Array(totalLength);
+  let offset = 0;
+  chunks.forEach((part) => {
+    merged.set(part, offset);
+    offset += part.length;
+  });
+  return merged;
 }
 
 function downloadPdf(book) {
-  const lines = [asciiLine(book.title) || "StoryLoom"];
-  book.pages.forEach((page, index) => {
-    const sentence = asciiLine(plainLine(page.en));
-    const chunk = "Page " + (index + 1) + ": " + sentence;
-    for (let i = 0; i < chunk.length; i += 70) lines.push(chunk.slice(i, i + 70));
+  const target = ensurePages(book) || book;
+  if (!target) {
+    toast("PDF로 만들 동화를 찾지 못했어요.");
+    return;
+  }
+  const pages = collectBookStoryPages(target);
+  if (!pages.length) {
+    toast("PDF에 넣을 장면이 없어요.");
+    return;
+  }
+  const author = target.author || state.nickname || "꼬마 작가님";
+  const jpegBytesList = pages.map((page, index) => {
+    const canvas = drawStoryPdfPage(target, page, index, pages.length, author);
+    return dataUrlToPdfBytes(canvas.toDataURL("image/jpeg", 0.92));
   });
-  lines.push("Made with StoryLoom");
-  const escaped = lines.map((line) => "(" + line.replace(/\\/g, "\\\\").replace(/\(/g, "\\(").replace(/\)/g, "\\)") + ") Tj");
-  let stream = "BT /F1 16 Tf 50 760 Td " + escaped[0] + " ";
-  for (let i = 1; i < escaped.length; i += 1) stream += "/F1 12 Tf 0 -22 Td " + escaped[i] + " ";
-  stream += "ET";
-  const objects = [];
-  objects.push("1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj\n");
-  objects.push("2 0 obj << /Type /Pages /Kids [3 0 R] /Count 1 >> endobj\n");
-  objects.push("3 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >> endobj\n");
-  objects.push("4 0 obj << /Length " + stream.length + " >> stream\n" + stream + "\nendstream\nendobj\n");
-  objects.push("5 0 obj << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> endobj\n");
-  let pdf = "%PDF-1.4\n";
-  const offsets = [0];
-  objects.forEach((obj) => {
-    offsets.push(pdf.length);
-    pdf += obj;
-  });
-  const xref = pdf.length;
-  pdf += "xref\n0 6\n0000000000 65535 f \n";
-  for (let i = 1; i <= 5; i += 1) pdf += String(offsets[i]).padStart(10, "0") + " 00000 n \n";
-  pdf += "trailer << /Size 6 /Root 1 0 R >>\nstartxref\n" + xref + "\n%%EOF";
-  const blob = new Blob([pdf], { type: "application/pdf" });
+  const pdfBytes = buildImagePdf(jpegBytesList);
+  const blob = new Blob([pdfBytes], { type: "application/pdf" });
   const link = document.createElement("a");
   link.href = URL.createObjectURL(blob);
-  link.download = (book.title || "storyloom").replace(/\s+/g, "-") + ".pdf";
+  link.download = String(target.title || "storyloom").replace(/\s+/g, "-") + ".pdf";
   link.click();
   setTimeout(() => URL.revokeObjectURL(link.href), 1500);
+}
+
+function encodeSharePayload(payload) {
+  const json = JSON.stringify(payload);
+  return btoa(unescape(encodeURIComponent(json)))
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/g, "");
+}
+
+function decodeSharePayload(encoded) {
+  try {
+    const padded = String(encoded || "").replace(/-/g, "+").replace(/_/g, "/");
+    const pad = padded.length % 4 === 0 ? "" : "=".repeat(4 - (padded.length % 4));
+    const json = decodeURIComponent(escape(atob(padded + pad)));
+    return JSON.parse(json);
+  } catch (err) {
+    return null;
+  }
+}
+
+function buildShareLinkForBook(book) {
+  const pages = collectBookStoryPages(book);
+  const payload = {
+    v: 1,
+    id: book.id || "",
+    title: book.title || "My Story",
+    kr: book.kr || "",
+    author: book.author || state.nickname || "꼬마 작가님",
+    emoji: book.emoji || "📖",
+    cover: book.cover || "",
+    coverImage: book.coverImage || "",
+    pages: pages.map((page) => ({
+      en: page.text_en,
+      ko: page.text_ko,
+      text_en: page.text_en,
+      text_ko: page.text_ko,
+      image: page.image || ""
+    }))
+  };
+  const url = new URL(window.location.href);
+  url.searchParams.delete("book");
+  url.searchParams.set("story", encodeSharePayload(payload));
+  if (book.id && book.id !== "shared-story") {
+    url.searchParams.set("book", book.id);
+  }
+  return url.toString();
+}
+
+async function shareCurrentLibraryBook() {
+  const book = getActiveReaderBook();
+  if (!book || isOmnibusReaderBook(book)) {
+    toast("공유할 내 동화를 먼저 열어 주세요.");
+    return;
+  }
+  const pages = collectBookStoryPages(book);
+  if (!pages.length) {
+    toast("공유할 장면이 없어요.");
+    return;
+  }
+  const link = buildShareLinkForBook(book);
+  try {
+    await navigator.clipboard.writeText(link);
+    toast("공유 링크가 복사되었어요! 친구에게 붙여넣기 해 보세요 🔗");
+  } catch (err) {
+    window.prompt("공유 링크를 복사해 주세요:", link);
+    toast("공유 링크가 복사되었어요! 친구에게 붙여넣기 해 보세요 🔗");
+  }
+}
+
+function publishCurrentLibraryBook() {
+  const book = findBook(state.publishId || state.sampleBookId);
+  if (!book || isOmnibusReaderBook(book)) {
+    toast("출판할 내 동화를 찾지 못했어요.");
+    return;
+  }
+  const wasPublished = !!book.published;
+  book.published = true;
+  book.note = "출판 완료";
+  if (!wasPublished) recordLearningActivity("publish");
+  persistBooks();
+  burst();
+  renderParents();
+  shelfBooks();
+  renderSampleReader();
+  toast("와! 나만의 영어 동화책이 출판됐어요. (+5점)");
+}
+
+function consumeShareLinkFromUrl() {
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const bookId = params.get("book");
+    const storyParam = params.get("story");
+    if (bookId && findBook(bookId)) {
+      setTimeout(() => openLibraryReader(bookId), 120);
+      return true;
+    }
+    if (storyParam) {
+      const payload = decodeSharePayload(storyParam);
+      if (payload) {
+        setTimeout(() => openSharedStoryReader(payload), 120);
+        return true;
+      }
+    }
+  } catch (err) { /* ignore */ }
+  return false;
 }
 
 function burst() {
@@ -1615,7 +3990,9 @@ function saveWord(data) {
     return;
   }
   state.vocab.unshift({ word: data.word, meaning: data.meaning, pron: data.pron, example: data.example, from: state.story ? (state.story.kr || state.story.title) : "동화" });
-  state.week[6] += 1;
+  persistVocab();
+  bumpWeekVocabCount();
+  recordLearningActivity("vocab");
   renderVocab();
   renderParents();
   toast("“" + data.word + "”를 단어장에 저장했어요.");
@@ -1623,11 +4000,17 @@ function saveWord(data) {
 
 function openRelay(id) {
   const story = state.community.find((item) => item.id === id);
+  if (!story) return;
   state.relayId = id;
   $("relayTitle").textContent = story.title;
   $("relayAuthor").textContent = story.author + "가 시작한 이야기";
-  $("relayStory").textContent = story.text;
+  renderRelayStory(story);
   $("relayMore").value = "";
+  const btn = $("relaySubmit");
+  if (btn) {
+    btn.disabled = false;
+    btn.textContent = "이 문장으로 이어 쓰기";
+  }
   $("modalRelay").classList.remove("hidden");
   $("modalRelay").classList.add("flex");
 }
@@ -1635,6 +4018,11 @@ function openRelay(id) {
 function closeRelay() {
   $("modalRelay").classList.add("hidden");
   $("modalRelay").classList.remove("flex");
+  const btn = $("relaySubmit");
+  if (btn) {
+    btn.disabled = false;
+    btn.textContent = "이 문장으로 이어 쓰기";
+  }
 }
 
 function turnPage(dir) {
@@ -1751,9 +4139,17 @@ document.body.addEventListener("click", (event) => {
   }
   if (action === "template") {
     const tplKey = el.dataset.tpl;
+    clearActiveDraft();
+    state.activeBookId = null;
+    state.usedSuggestions = [];
+    state.lastSuggestions = [];
+    state.relayMadlib = null;
+    state.relayMadlibKo = null;
+    state.suggestionPoolCursor = 0;
     state.template = tplKey;
     renderComposer();
     resetStoryBook(tplKey);
+    syncTemplateCardHighlight(tplKey);
     console.log("[StoryLoom] 템플릿 Scene 1 로드:", tplKey, storyPages[0] && storyPages[0].text_en);
   }
   if (action === "choice") {
@@ -1787,8 +4183,17 @@ document.body.addEventListener("click", (event) => {
     saveWord(el.dataset);
     hideTooltip();
   }
-  if (action === "publish") openPublish(el.dataset.id);
+  if (action === "complete-vocab" || action === "delete-vocab") {
+    event.stopPropagation();
+    const card = el.closest(".vocab-card");
+    removeVocabWord(el.dataset.word, card);
+  }
+  if (action === "publish" || action === "read-library") openLibraryReader(el.dataset.id);
+  if (action === "read-sample") openSampleReader(el.dataset.id || FRIENDS_OMNIBUS_ID);
   if (action === "close-publish") closePublish();
+  if (action === "close-sample") closeSampleReader();
+  if (action === "sample-prev") turnSamplePage(-1);
+  if (action === "sample-next") turnSamplePage(1);
   if (action === "open-relay") openRelay(el.dataset.id);
   if (action === "close-relay") closeRelay();
   if (action === "pin") pressPin(el.dataset.key);
@@ -1981,7 +4386,7 @@ async function callGroqOnce(apiKey, model, userMessage) {
   }
   let parsedData;
   try {
-    parsedData = await callGroqChatJson(trimmedKey, model, SYSTEM_PROMPT, userMessage, 0.8);
+    parsedData = await callGroqChatJson(trimmedKey, model, SYSTEM_PROMPT + RELAY_PROMPT_ADDENDUM, userMessage, 0.8);
   } catch (networkErr) {
     if (networkErr && String(networkErr.message || "").indexOf("Failed to fetch") !== -1) {
       alert("네트워크 연결 문제 또는 CORS 에러가 발생했습니다. 콘솔을 확인해 주세요.");
@@ -2006,6 +4411,12 @@ async function callGroqOnce(apiKey, model, userMessage) {
   const normalized = normalizeGeminiPayload(parsedData);
   normalized.suggestions = normalizeSuggestions(rawSuggestions, normalized.english, "");
   normalized._apiSuggestions = rawSuggestions.slice();
+  if (parsedData && (parsedData.relay_prompt || parsedData.relayPrompt)) {
+    normalized.relay_prompt = String(parsedData.relay_prompt || parsedData.relayPrompt || "").trim();
+  }
+  if (parsedData && (parsedData.relay_prompt_ko || parsedData.relayPromptKo)) {
+    normalized.relay_prompt_ko = String(parsedData.relay_prompt_ko || parsedData.relayPromptKo || "").trim();
+  }
   return normalized;
 }
 
@@ -2049,6 +4460,12 @@ function normalizeGeminiPayload(payload) {
   const suggestionSource = raw.suggestions != null ? raw.suggestions
     : (raw.keywords != null ? raw.keywords
       : (raw.next_suggestions != null ? raw.next_suggestions : null));
+  const relayPrompt = String(
+    raw.relay_prompt || raw.relayPrompt || raw.next_madlib || raw.madlib || ""
+  ).trim();
+  const relayPromptKo = String(
+    raw.relay_prompt_ko || raw.relayPromptKo || raw.next_madlib_ko || raw.madlib_ko || raw.madlibKo || ""
+  ).trim();
   const out = {
     english: english,
     korean: korean,
@@ -2056,7 +4473,11 @@ function normalizeGeminiPayload(payload) {
     story_ko: korean,
     suggestions: normalizeSuggestions(suggestionSource, english, ""),
     words: Array.isArray(raw.words) ? raw.words : [],
-    image: raw.image
+    image: raw.image,
+    relay_prompt: relayPrompt,
+    relay_prompt_ko: relayPromptKo,
+    relayPrompt: relayPrompt,
+    relayPromptKo: relayPromptKo
   };
   if (Array.isArray(raw._apiSuggestions)) out._apiSuggestions = raw._apiSuggestions.slice();
   return out;
@@ -2110,7 +4531,7 @@ async function requestGroqStory(idea) {
   if (!apiKey) {
     throw new Error("GROQ_API_KEY가 비어 있습니다. config.js를 확인해 주세요.");
   }
-  const models = ["openai/gpt-oss-120b", "openai/gpt-oss-20b"];
+  const models = ["qwen/qwen3-32b", "openai/gpt-oss-120b", "openai/gpt-oss-20b"];
   let lastError = "Groq 연결 실패";
   let sawModelNotFound = false;
   function isModelNotFoundError(error) {
@@ -2250,12 +4671,14 @@ $("generateBtn").addEventListener("click", async () => {
       en: page.en,
       kr: textKo
     });
-    updateSuggestionButtonsFromApi({
+    markSuggestionUsed(userInput);
+    updateSuggestionButtonsFromApi(Object.assign({}, payload || {}, {
       english: textEn,
       suggestions: (payload && payload._apiSuggestions && payload._apiSuggestions.length)
         ? payload._apiSuggestions
         : (payload && payload.suggestions)
-    }, textEn, userInput);
+    }), textEn, userInput);
+    recordLearningActivity("story");
     toast("다음 장면이 만들어졌어요. 책장을 넘겨 보세요.");
   } catch (error) {
     console.error("동화 생성 처리 오류:", error);
@@ -2277,48 +4700,200 @@ $("listenBtn").addEventListener("click", () => {
   speak(plainLine(storyPages[currentPage].en), $("listenBtn"));
 });
 $("saveBookBtn").addEventListener("click", () => {
-  if (!state.story) return;
-  if (!state.books.some((book) => book.id === state.story.id)) {
-    state.books.unshift({ id: state.story.id, title: state.story.title, kr: state.story.kr, emoji: state.story.emoji, cover: state.story.cover, note: "내 서재", pages: state.story.pages, published: false, art: state.story.art });
+  if (state.story && (state.story.id === FRIENDS_OMNIBUS_ID || state.story.libraryId === FRIENDS_OMNIBUS_ID)) {
+    toast("기본 통합본은 이미 서재에 있어요.");
+    return;
   }
-  toast("서재 책장에 올려 두었어요.");
-  shelfBooks();
+  if (!storyPages.length) {
+    toast("먼저 동화 장면을 만들어 주세요.");
+    return;
+  }
+  const result = syncActiveStoryToLibrary({ silent: true, createIfMissing: true });
+  if (!result || !result.ok) {
+    toast("서재에 넣을 동화 내용이 없어요.");
+    return;
+  }
+  if (result.updated) {
+    toast("서재의 책 내용을 최신 이야기로 업데이트했어요! ✨");
+  } else {
+    toast("서재 책장에 올려 두었어요.");
+  }
 });
-$("downloadBtn").addEventListener("click", () => {
-  downloadPdf(ensurePages(findBook(state.publishId)));
-  toast("영어 동화 PDF를 내려받았어요.");
-});
-$("shareBtn").addEventListener("click", async () => {
-  const book = ensurePages(findBook(state.publishId));
-  const message = "StoryLoom에서 만든 영어 동화 “" + book.title + "”를 같이 읽어요!\n" + plainLine(book.pages[0].en);
+
+function resetCurrentCreationDraftOnly() {
+  const ok = window.confirm("현재 쓰던 동화 화면을 비우고 새 이야기를 시작할까요? (서재에 저장된 책은 유지돼요)");
+  if (!ok) return;
+  clearActiveDraft();
+  state.activeBookId = null;
+  state.usedSuggestions = [];
+  state.lastSuggestions = [];
+  state.relayMadlib = null;
+  state.relayMadlibKo = null;
+  state.suggestionPoolCursor = 0;
+  if (state.story) {
+    state.story.libraryId = null;
+    state.story.activeBookId = null;
+    state.story.id = null;
+  }
+  const inputEl = $("relayInput") || $("user-input");
+  if (inputEl) inputEl.value = "";
+  const tplKey = CLASSIC_STORIES[state.template] ? state.template : "pigs";
+  resetStoryBook(tplKey);
+  syncTemplateCardHighlight(tplKey);
+  toast("새 동화를 시작할 준비됐어요.");
+}
+
+function wipeAllStoryLoomLocalData() {
+  const ok = window.confirm("모든 창작 도서, 단어장, 학습 포인트, 커뮤니티 기록을 초기 상태로 되돌릴까요?");
+  if (!ok) return;
   try {
-    await navigator.clipboard.writeText(message);
-    toast("공유 문구를 복사했어요. SNS에 붙여 넣으세요.");
+    const extraKeys = [
+      "customProfileImage",
+      "customProfileStyle",
+      "storyloom-nickname",
+      "storyloom-theme",
+      "storyloom-character",
+      VOCAB_STORAGE_KEY,
+      BOOKS_STORAGE_KEY,
+      ACTIVE_DRAFT_KEY,
+      COMMUNITY_STORAGE_KEY,
+      WEEK_VOCAB_COUNT_KEY
+    ];
+    const toRemove = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (!key) continue;
+      if (
+        key.indexOf("storyloom") === 0 ||
+        key.indexOf(WEEK_ACTIVITY_KEY) === 0 ||
+        extraKeys.indexOf(key) >= 0
+      ) {
+        toRemove.push(key);
+      }
+    }
+    extraKeys.forEach((key) => {
+      if (toRemove.indexOf(key) < 0) toRemove.push(key);
+    });
+    toRemove.forEach((key) => localStorage.removeItem(key));
+    // 단어장은 키를 비워 두어 기본 샘플 4개가 다시 채워지지 않게 함
+    localStorage.setItem(VOCAB_STORAGE_KEY, "[]");
   } catch (err) {
-    toast("공유 문구를 준비했어요.");
+    console.warn("[StoryLoom] 전체 초기화 실패:", err && err.message);
   }
-});
-$("cheerBtn").addEventListener("click", () => {
-  const book = findBook(state.publishId);
-  book.published = true;
-  book.note = "출판 완료";
-  burst();
-  renderParents();
-  shelfBooks();
-  toast("와! 나만의 영어 동화책이 출판됐어요.");
-});
-$("relaySubmit").addEventListener("click", () => {
-  const line = $("relayMore").value.trim();
+  window.location.reload();
+}
+
+const newStoryBtn = $("newStoryBtn");
+if (newStoryBtn) newStoryBtn.addEventListener("click", resetCurrentCreationDraftOnly);
+const wipeAllDataBtn = $("wipeAllDataBtn");
+if (wipeAllDataBtn) wipeAllDataBtn.addEventListener("click", wipeAllStoryLoomLocalData);
+function handlePdfDownloadClick() {
+  const book = getActiveReaderBook() || ensurePages(findBook(state.publishId));
+  downloadPdf(book);
+  toast("영어 동화 PDF를 내려받았어요.");
+}
+
+$("downloadBtn").addEventListener("click", handlePdfDownloadClick);
+$("shareBtn").addEventListener("click", () => { shareCurrentLibraryBook(); });
+$("cheerBtn").addEventListener("click", () => { publishCurrentLibraryBook(); });
+
+const libraryDownloadBtn = $("libraryDownloadBtn");
+const libraryShareBtn = $("libraryShareBtn");
+const libraryCheerBtn = $("libraryCheerBtn");
+const libraryContinueBtn = $("libraryContinueBtn");
+if (libraryDownloadBtn) libraryDownloadBtn.addEventListener("click", handlePdfDownloadClick);
+if (libraryShareBtn) libraryShareBtn.addEventListener("click", () => { shareCurrentLibraryBook(); });
+if (libraryCheerBtn) libraryCheerBtn.addEventListener("click", () => { publishCurrentLibraryBook(); });
+if (libraryContinueBtn) {
+  libraryContinueBtn.addEventListener("click", () => {
+    const bookId = state.publishId || state.sampleBookId;
+    loadBookIntoCreateWorkspace(bookId);
+  });
+}
+$("relaySubmit").addEventListener("click", async () => {
+  const button = $("relaySubmit");
+  if (button && button.disabled) return;
+  const line = String($("relayMore").value || "").trim();
   if (!line) {
     toast("이어 쓸 문장을 한 줄 적어 주세요.");
     return;
   }
   const story = state.community.find((item) => item.id === state.relayId);
-  story.text += " " + line;
-  renderCommunity();
-  $("relayStory").textContent = story.text;
-  $("relayMore").value = "";
-  toast("친구 이야기의 다음 장면이 이어졌어요.");
+  if (!story) {
+    toast("이어 쓸 이야기를 찾지 못했어요.");
+    return;
+  }
+
+  const originalLabel = "이 문장으로 이어 쓰기";
+  let englishLine = "";
+  let koreanLine = "";
+  let usedFallback = false;
+  const inputIsKorean = containsHangul(line);
+  const inputIsEnglish = looksMostlyEnglish(line);
+
+  try {
+    if (button) {
+      button.disabled = true;
+      button.textContent = inputIsKorean ? "영어 문장으로 바꾸는 중... ✨" : "한국어 해석을 만드는 중... ✨";
+    }
+
+    if (inputIsKorean) {
+      // 한국어 입력 → 해석에 원문 누적, 영어는 Groq 번역
+      koreanLine = ensureKoreanSentenceEnding(line);
+      try {
+        englishLine = await translateRelayLineToEnglish(line, story);
+      } catch (err) {
+        console.warn("[StoryLoom] 릴레이 한→영 폴백:", err && err.message);
+        englishLine = relayFallbackEnglish(line, story);
+        usedFallback = true;
+      }
+    } else if (inputIsEnglish) {
+      // 영어 입력 → 본문에 원문 누적, 한국어는 Groq 번역
+      englishLine = ensureEnglishSentenceEnding(line);
+      try {
+        koreanLine = await translateRelayLineToKorean(englishLine, story);
+      } catch (err) {
+        console.warn("[StoryLoom] 릴레이 영→한 폴백:", err && err.message);
+        koreanLine = relayFallbackKorean(englishLine, story);
+        usedFallback = true;
+      }
+    } else {
+      // 애매한 입력은 영어로 취급하되 한국어 해석도 시도
+      englishLine = ensureEnglishSentenceEnding(line);
+      try {
+        koreanLine = await translateRelayLineToKorean(englishLine, story);
+      } catch (err) {
+        koreanLine = relayFallbackKorean(englishLine, story);
+        usedFallback = true;
+      }
+    }
+
+    appendCommunityRelaySentence(story, englishLine, koreanLine);
+    recordLearningActivity("community");
+    renderCommunity();
+    if (state.tab === "parents" || state.parentUnlocked) renderParents();
+    renderRelayStory(story);
+    $("relayMore").value = "";
+    if (usedFallback) {
+      toast(
+        getGroqApiKey()
+          ? "번역이 잠시 안 되어 비슷한 문장으로 이어 썼어요. (커뮤니티 +1점)"
+          : "API 키가 없어 기본 문장으로 이어 썼어요. config.js를 확인해 주세요. (커뮤니티 +1점)"
+      );
+    } else if (inputIsKorean) {
+      toast("한국어 아이디어를 영어 본문과 함께 이어 붙였어요. (커뮤니티 +1점)");
+    } else {
+      toast("영어 문장과 한국어 해석을 함께 이어 붙였어요. (커뮤니티 +1점)");
+    }
+  } catch (err) {
+    console.error("[StoryLoom] 릴레이 이어쓰기 오류:", err);
+    toast("이어 쓰기에 실패했어요. 잠시 후 다시 시도해 주세요.");
+  } finally {
+    if (button) {
+      button.disabled = false;
+      button.textContent = originalLabel;
+    }
+  }
 });
 $("pinCancel").addEventListener("click", () => {
   closePin();
@@ -2622,6 +5197,22 @@ if (document.readyState === "loading") {
   bootProfilePhoto();
 }
 
+state.vocab = loadVocabFromStorage();
+persistVocab();
+state.books = loadBooksFromStorage();
+persistBooks();
+state.community = loadCommunityFromStorage();
+persistCommunity();
+syncWeekVocabCountFromStorage();
+persistWeekVocabCount();
+syncWeekActivityFromStorage(state.level);
+persistWeekActivity(state.level);
+
+const draftRestored = restoreActiveDraft();
+if (draftRestored) {
+  console.log("[StoryLoom] 자유 창작 draft 복원:", storyPages.length + "장면", (currentPage + 1) + "/" + storyPages.length);
+}
+
 renderCharacter();
 renderLevel();
 renderComposer();
@@ -2630,3 +5221,4 @@ renderVocab();
 shelfBooks();
 renderParents();
 renderCommunity();
+consumeShareLinkFromUrl();
