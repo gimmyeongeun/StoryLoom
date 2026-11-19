@@ -390,6 +390,39 @@ html.dark .book-status.is-gift {
 .library-reader-actions.hidden {
   display: none !important;
 }
+.library-manage-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+.library-manage-wrap.hidden {
+  display: none !important;
+}
+.book-rename-btn,
+.book-delete-btn {
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 0.8125rem;
+  font-weight: 800;
+  padding: 8px 14px;
+}
+.book-rename-btn {
+  background: #f5f3ff;
+  border: 1px solid #ddd6fe;
+  color: #6d28d9;
+}
+.book-rename-btn:hover {
+  background: #ede9fe;
+}
+.book-delete-btn {
+  background: #fff1f2;
+  border: 1px solid #fecdd3;
+  color: #e11d48;
+}
+.book-delete-btn:hover {
+  background: #ffe4e6;
+}
 .relay-story-box {
   border: 1px solid rgba(139, 124, 247, 0.16);
 }

@@ -3534,6 +3534,12 @@ function setLibraryActionsVisible(show) {
   panel.classList.toggle("hidden", !show);
 }
 
+function setLibraryManageVisible(show) {
+  const panel = $("libraryManageWrap");
+  if (!panel) return;
+  panel.classList.toggle("hidden", !show);
+}
+
 function renderSampleReader() {
   const book = getActiveReaderBook();
   if (!book) return;
@@ -3571,11 +3577,13 @@ function renderSampleReader() {
     setLibraryActionsVisible(onLastPage);
     const continueWrap = $("libraryContinueWrap");
     if (continueWrap) continueWrap.classList.remove("hidden");
+    setLibraryManageVisible(book.id !== "shared-story");
   }
 
   if (omnibus) {
     const continueWrap = $("libraryContinueWrap");
     if (continueWrap) continueWrap.classList.add("hidden");
+    setLibraryManageVisible(false);
   }
 
   $("sampleEnglish").textContent = en || "(이 장면의 영어 문장이 아직 없어요)";
@@ -3664,8 +3672,79 @@ function closeSampleReader() {
   $("modalSample").classList.add("hidden");
   $("modalSample").classList.remove("flex");
   setLibraryActionsVisible(false);
+  setLibraryManageVisible(false);
   const continueWrap = $("libraryContinueWrap");
   if (continueWrap) continueWrap.classList.add("hidden");
+}
+
+function syncRenamedBookIntoWorkspace(book) {
+  if (!book || !state.story) return;
+  const id = book.id;
+  const linked = state.activeBookId === id
+    || state.story.libraryId === id
+    || state.story.activeBookId === id
+    || state.story.id === id;
+  if (!linked) return;
+  state.story.title = book.title;
+  state.story.kr = book.kr;
+  persistActiveDraft();
+  updateUI();
+}
+
+function renameLibraryBook(bookId) {
+  const book = findBook(bookId);
+  if (!book || isOmnibusReaderBook(book) || book.id === "shared-story") {
+    toast("기본 통합본은 제목을 바꿀 수 없어요.");
+    return;
+  }
+  const nextTitle = window.prompt("새 영어 제목을 입력해 주세요.", book.title || "");
+  if (nextTitle == null) return;
+  const title = String(nextTitle).trim();
+  if (!title) {
+    toast("영어 제목을 입력해 주세요.");
+    return;
+  }
+  const nextKr = window.prompt("새 한국어 부제를 입력해 주세요.", book.kr || "");
+  if (nextKr == null) return;
+  book.title = title;
+  book.kr = String(nextKr).trim();
+  persistBooks();
+  shelfBooks();
+  syncRenamedBookIntoWorkspace(book);
+  renderSampleReader();
+  toast("동화 제목을 바꿨어요.");
+}
+
+function deleteLibraryBook(bookId) {
+  const book = findBook(bookId);
+  if (!book || isOmnibusReaderBook(book) || book.id === "shared-story") {
+    toast("기본 통합본은 삭제할 수 없어요.");
+    return;
+  }
+  const ok = window.confirm("정말 이 동화책을 서재에서 삭제할까요? 삭제 후에는 되돌릴 수 없어요.");
+  if (!ok) return;
+  state.books = (state.books || []).filter((item) => item && item.id !== bookId);
+  persistBooks();
+  const linked = state.activeBookId === bookId
+    || (state.story && (
+      state.story.libraryId === bookId
+      || state.story.activeBookId === bookId
+      || state.story.id === bookId
+    ));
+  if (linked) {
+    state.activeBookId = null;
+    if (state.story) {
+      state.story.libraryId = null;
+      state.story.activeBookId = null;
+      if (state.story.id === bookId) state.story.id = "classic-" + (state.template || "pigs");
+    }
+    persistActiveDraft();
+  }
+  if (state.sampleBookId === bookId) state.sampleBookId = null;
+  if (state.publishId === bookId) state.publishId = null;
+  closeSampleReader();
+  shelfBooks();
+  toast("서재에서 동화를 삭제했어요.");
 }
 
 function turnSamplePage(dir) {
@@ -4808,6 +4887,18 @@ if (libraryContinueBtn) {
   libraryContinueBtn.addEventListener("click", () => {
     const bookId = state.publishId || state.sampleBookId;
     loadBookIntoCreateWorkspace(bookId);
+  });
+}
+const renameBookBtn = $("renameBookBtn");
+const deleteBookBtn = $("deleteBookBtn");
+if (renameBookBtn) {
+  renameBookBtn.addEventListener("click", () => {
+    renameLibraryBook(state.publishId || state.sampleBookId);
+  });
+}
+if (deleteBookBtn) {
+  deleteBookBtn.addEventListener("click", () => {
+    deleteLibraryBook(state.publishId || state.sampleBookId);
   });
 }
 $("relaySubmit").addEventListener("click", async () => {
